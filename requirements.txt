@@ -1,1 +1,3 @@
 html2markdown
+
+ckanext-transmute~=1.0.1
