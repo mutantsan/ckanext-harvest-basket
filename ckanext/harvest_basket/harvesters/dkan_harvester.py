@@ -101,8 +101,7 @@ class DKANHarvester(HarvesterBase):
 		package_names = self._get_package_names(package_list_url)
 		package_names = json.loads(package_names)["result"]
 
-		#TODO development process
-		max_datasets = int(self.config.get("max_datasets", 1))
+		max_datasets = int(self.config.get("max_datasets", 0))
 		delay = int(self.config.get("delay", 0))
 
 		for package_name in set(package_names):
@@ -131,7 +130,7 @@ class DKANHarvester(HarvesterBase):
 
 			pkg_dicts.extend(package_dict_page)
 
-			if len(pkg_dicts) == max_datasets:
+			if max_datasets and len(pkg_dicts) == max_datasets:
 				break
 
 			# to avoid ban for frequent requests
@@ -371,6 +370,7 @@ class DKANHarvester(HarvesterBase):
 
 	def transmute_data(self, data):
 		transmute_schema = self.config.get('tsm_schema')
+		
 		if transmute_schema:
 			tk.get_action('tsm_transmute')(self.base_context, {
 				"data": data,
