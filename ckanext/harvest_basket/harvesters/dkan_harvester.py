@@ -109,7 +109,7 @@ class DKANHarvester(HarvesterBase):
 			log.debug(f"DKAN: Searching for dataset: {url}")
 
 			try:
-				content = self._get_content(url)
+				content = self._get_content(url, timeout=5)
 			except ContentFetchError as e:
 				raise SearchError(
 					"DKAN: Error sending request to the remote "
@@ -152,7 +152,7 @@ class DKANHarvester(HarvesterBase):
 			"Request status_code: {}".format(http_request.status_code)
 		)
 
-	def _get_content(self, url: str) -> str:
+	def _get_content(self, url: str, timeout=0) -> str:
 		resp = None
 
 		try:
@@ -169,17 +169,20 @@ class DKANHarvester(HarvesterBase):
 		if resp and resp.status_code == 200:
 			return resp.text
 		elif resp and resp.status_code != 200:
-			log.error(f'Bad response from remote portal: {resp.status_code}, {resp.reason}')
+			log.error(
+       			f"{self.info()['title']}: bad response from remote portal: "
+          		f"{resp.status_code}, {resp.reason}"
+        	)
 
-		# Sleep is for cases when we get refused connection due to multiple requests
-		sleep(5)
+		sleep(timeout)
 		return ""
 
 	def fetch_stage(self, harvest_object):
 		content = json.loads(harvest_object.content)
 		content['resources'] = self._fetch_resources(
 				content.get('resources'),
-				content.get('id'))
+				content.get('id')
+		)
 		content['tags'] = self._fetch_tags(content.get('tags'))
 
 		content['private'] = False
