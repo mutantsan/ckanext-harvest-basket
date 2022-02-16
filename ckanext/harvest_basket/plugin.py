@@ -4,7 +4,6 @@ import ckan.plugins.toolkit as toolkit
 
 class HarvestBasketPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IConfigurer)
-    
 
     # IConfigurer
 
@@ -12,5 +11,3 @@ class HarvestBasketPlugin(plugins.SingletonPlugin):
         toolkit.add_template_directory(config_, "templates")
         toolkit.add_public_directory(config_, "public")
         toolkit.add_resource("assets", "harvest_basket")
-
-    

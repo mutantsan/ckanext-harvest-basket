@@ -16,235 +16,248 @@ log = logging.getLogger(__name__)
 
 
 class JunarHarvester(DKANHarvester):
-	def info(self):
-		return {
-			"name": "junar",
-			"title": "Junar",
-			"description": (
-				"Harvests datasets from Junar portals. "
-				"Provide the `auth_key` before start. "
-				"The key could be acquired at the target Junar portal"
-			)
-		}
-	
-	def gather_stage(self, harvest_job):
-		self.source_type = "Junar"
-		source_url = harvest_job.source.url.strip("/")
-		log.info(f"{self.source_type}: Junar gather stage in progress: {source_url}")
-  
-		self._set_config(harvest_job.source.config)
+    def info(self):
+        return {
+            "name": "junar",
+            "title": "Junar",
+            "description": (
+                "Harvests datasets from Junar portals. "
+                "Provide the `auth_key` before start. "
+                "The key could be acquired at the target Junar portal"
+            ),
+        }
 
-		try:
-			pkg_dicts = self._search_for_datasets(source_url)
-		except SearchError as e:
-			log.error(f"{self.source_type}: searching for datasets failed: {e}")
-			self._save_gather_error(
-				f"{self.source_type}: unable to search the remote Junar portal for datasets: {source_url}",
-				harvest_job
-			)
-			return []
+    def gather_stage(self, harvest_job):
+        self.source_type = "Junar"
+        source_url = harvest_job.source.url.strip("/")
+        log.info(f"{self.source_type}: Junar gather stage in progress: {source_url}")
 
-		if not pkg_dicts:
-			log.error(f"{self.source_type}: searching returns empty result.")
-			self._save_gather_error(
-				f"{self.source_type}: no datasets found at Junar remote portal: {source_url}",
-				harvest_job
-			)
-			return []
-		
-		try:
-			object_ids = []
+        self._set_config(harvest_job.source.config)
 
-			for pkg_dict in pkg_dicts:
-				log.info(
-					f"{self.source_type}: Creating HARVEST object "
-	 				f"for {pkg_dict['title']} | guid: {pkg_dict['guid']}"
-				)
+        try:
+            pkg_dicts = self._search_for_datasets(source_url)
+        except SearchError as e:
+            log.error(f"{self.source_type}: searching for datasets failed: {e}")
+            self._save_gather_error(
+                f"{self.source_type}: unable to search the remote Junar portal for datasets: {source_url}",
+                harvest_job,
+            )
+            return []
 
-				obj = HarvestObject(guid=pkg_dict["guid"],
-									job=harvest_job,
-									content=json.dumps(pkg_dict))
-				obj.save()
-				object_ids.append(obj.id)
+        if not pkg_dicts:
+            log.error(f"{self.source_type}: searching returns empty result.")
+            self._save_gather_error(
+                f"{self.source_type}: no datasets found at Junar remote portal: {source_url}",
+                harvest_job,
+            )
+            return []
 
-			return object_ids
-		except Exception as e:
-			log.debug(
-				f"{self.source_type}: The error occured during the gather stage: {e}"
-			)
-			self._save_gather_error(str(e), harvest_job)
-			return []
+        try:
+            object_ids = []
 
-	def _search_for_datasets(self, source_url):
-		pkg_dicts = []
-		url = self._get_all_resources_data_url(source_url)
-		
-		max_datasets = int(self.config.get("max_datasets", 0))
+            for pkg_dict in pkg_dicts:
+                log.info(
+                    f"{self.source_type}: Creating HARVEST object "
+                    f"for {pkg_dict['title']} | guid: {pkg_dict['guid']}"
+                )
 
-		while True:
-			log.info(f"{self.source_type}: Gathering remote dataset: {url}")
+                obj = HarvestObject(
+                    guid=pkg_dict["guid"], job=harvest_job, content=json.dumps(pkg_dict)
+                )
+                obj.save()
+                object_ids.append(obj.id)
 
-			resp = self._make_request(url)
-			if not resp:
-				log.debug(
-        			f"{self.source_type}: Remote portal doesn't provide resources API. "
-					"Changing API endpoint")
-				url = self._get_all_datasets_json_url(source_url)
-				continue
+            return object_ids
+        except Exception as e:
+            log.debug(
+                f"{self.source_type}: The error occured during the gather stage: {e}"
+            )
+            self._save_gather_error(str(e), harvest_job)
+            return []
 
-			pkgs_data = json.loads(resp.text)
-			
-			package_ids = set()
-			for pkg in pkgs_data["results"]:
-				if "/dashboards/" in pkg["link"]:
-					# we can skip the dashboards, cause it's just a "collection"
-					# of resources that we will get anyway
-					break
-				# Junar API returns duplicated IDs
-				# They put the same resource in defferent "types"
-				if pkg["guid"] in package_ids:
-					log.debug(f"{self.source_type}: Discarding duplicate dataset {pkg['guid']}.")
-					continue
-				package_ids.add(pkg["guid"])
+    def _search_for_datasets(self, source_url):
+        pkg_dicts = []
+        url = self._get_all_resources_data_url(source_url)
 
-				pkg_dicts.append(pkg)
+        max_datasets = int(self.config.get("max_datasets", 0))
 
-			url = pkgs_data.get("next")
-			if not url:
-				break
+        while True:
+            log.info(f"{self.source_type}: Gathering remote dataset: {url}")
 
-			if max_datasets and len(pkg_dicts) > max_datasets:
-				break
+            resp = self._make_request(url)
+            if not resp:
+                log.debug(
+                    f"{self.source_type}: Remote portal doesn't provide resources API. "
+                    "Changing API endpoint"
+                )
+                url = self._get_all_datasets_json_url(source_url)
+                continue
 
-		if max_datasets:
-			return pkg_dicts[:max_datasets]
-		return pkg_dicts
+            pkgs_data = json.loads(resp.text)
 
-	def _get_all_datasets_json_url(self, source_url):
-		auth_key = self.config.get("auth_key")
-		return urljoin(source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50")
+            package_ids = set()
+            for pkg in pkgs_data["results"]:
+                if "/dashboards/" in pkg["link"]:
+                    # we can skip the dashboards, cause it's just a "collection"
+                    # of resources that we will get anyway
+                    break
+                # Junar API returns duplicated IDs
+                # They put the same resource in defferent "types"
+                if pkg["guid"] in package_ids:
+                    log.debug(
+                        f"{self.source_type}: Discarding duplicate dataset {pkg['guid']}."
+                    )
+                    continue
+                package_ids.add(pkg["guid"])
 
-	def _get_all_resources_data_url(self, source_url):
-		auth_key = self.config.get("auth_key")
-		return urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
+                pkg_dicts.append(pkg)
 
-	def fetch_stage(self, harvest_object):
-		source_url = harvest_object.source.url.strip("/")
-		package_dict = json.loads(harvest_object.content)
+            url = pkgs_data.get("next")
+            if not url:
+                break
 
-		package_dict["id"] = package_dict["guid"]
-		package_dict["title"] = package_dict["title"]
-		package_dict["notes"] = package_dict.get("description", "")
-		package_dict["url"] = package_dict.get("link", "")
-		package_dict["author"] = package_dict.get("user", "")
-		package_dict["tags"] = self._fetch_tags(package_dict.get("tags", []))
-		package_dict["created_at"] = self._datetime_refine(package_dict.get("created_at", ""))
+            if max_datasets and len(pkg_dicts) > max_datasets:
+                break
 
-		res_type = self._define_resource_type(package_dict["link"])
+        if max_datasets:
+            return pkg_dicts[:max_datasets]
+        return pkg_dicts
 
-		package_dict["resources"] = self._fetch_resources(package_dict, res_type, source_url)
+    def _get_all_datasets_json_url(self, source_url):
+        auth_key = self.config.get("auth_key")
+        return urljoin(
+            source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50"
+        )
 
-		extra = (("frequency", "Update Frequency"),
-				 ("category_name", "Category Name"),
-				 ("license", "License"),
-				 ("mbox", "Mailbox"),
-				 ("res_type", "Resource type"))
+    def _get_all_resources_data_url(self, source_url):
+        auth_key = self.config.get("auth_key")
+        return urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
 
-		package_dict["extras"] = []
+    def fetch_stage(self, harvest_object):
+        source_url = harvest_object.source.url.strip("/")
+        package_dict = json.loads(harvest_object.content)
 
-		for field in extra:
-			if package_dict.get(field[0]):
-				package_dict["extras"].append({"key": field[1],
-										  "value": package_dict[field[0]]})
-		
-		# dumps the fetched content and provide it to harvest_object
-		harvest_object.content = json.dumps(package_dict)
-		return True
+        package_dict["id"] = package_dict["guid"]
+        package_dict["title"] = package_dict["title"]
+        package_dict["notes"] = package_dict.get("description", "")
+        package_dict["url"] = package_dict.get("link", "")
+        package_dict["author"] = package_dict.get("user", "")
+        package_dict["tags"] = self._fetch_tags(package_dict.get("tags", []))
+        package_dict["created_at"] = self._datetime_refine(
+            package_dict.get("created_at", "")
+        )
 
-	def _fetch_tags(self, tags_list):
-		tags = []
+        res_type = self._define_resource_type(package_dict["link"])
 
-		if not tags_list:
-			return tags
+        package_dict["resources"] = self._fetch_resources(
+            package_dict, res_type, source_url
+        )
 
-		for t in tags_list:
-			tag = {}
-			tag["name"] = munge_tag(t)
-			tags.append(tag)
+        extra = (
+            ("frequency", "Update Frequency"),
+            ("category_name", "Category Name"),
+            ("license", "License"),
+            ("mbox", "Mailbox"),
+            ("res_type", "Resource type"),
+        )
 
-		return tags
+        package_dict["extras"] = []
 
-	def _define_resource_type(self, resource_url):
-		res_types = (u'dataviews',
-					 u'datasets',
-					 u'visualizations')
-		for res_type in res_types:
-			if res_type in resource_url:
-				return res_type
+        for field in extra:
+            if package_dict.get(field[0]):
+                package_dict["extras"].append(
+                    {"key": field[1], "value": package_dict[field[0]]}
+                )
 
-	def _fetch_resources(self, pkg_data, res_type, source_url):
-		resources = []
+        # dumps the fetched content and provide it to harvest_object
+        harvest_object.content = json.dumps(package_dict)
+        return True
 
-		resource = {}
+    def _fetch_tags(self, tags_list):
+        tags = []
 
-		resource["package_id"] = pkg_data["guid"]
-		resource["url"] = self._get_resource_url(pkg_data, res_type, source_url)
-		resource["format"] = "CSV"
-		resource["created"] = self._datetime_refine(pkg_data.get("created_at", ""))
-		resource["last_modified"] = self._datetime_refine(
-			pkg_data.get("modified_at", ""))
-		resource["name"] = pkg_data["title"]
+        if not tags_list:
+            return tags
 
-		# if res_type is datasets, we can"t predict the format
-		# otherwise we are fetching only csv
-		if res_type == "datasets":
-			fmt = "DATA"
+        for t in tags_list:
+            tag = {}
+            tag["name"] = munge_tag(t)
+            tags.append(tag)
 
-			resp = self._make_request(resource["url"])
-			if not resp:
-				pass
-			else:
-				try:
-					fmt = resp.headers["Content-Disposition"].strip('"').split(".")[-1]
-				except KeyError:
-					fmt = resp.url.split(".")[-1]
-					if "application/json" in reresps.headers.get("content-type", ""):
-						fmt = "JSON"
+        return tags
 
-			resource["format"] = fmt.upper()
+    def _define_resource_type(self, resource_url):
+        res_types = ("dataviews", "datasets", "visualizations")
+        for res_type in res_types:
+            if res_type in resource_url:
+                return res_type
 
-		resources.append(resource)
+    def _fetch_resources(self, pkg_data, res_type, source_url):
+        resources = []
 
-		return resources
+        resource = {}
 
-	def _get_resource_url(self, pkg_data, res_type, source_url):
-		auth_key = self.config.get(u'auth_key')
+        resource["package_id"] = pkg_data["guid"]
+        resource["url"] = self._get_resource_url(pkg_data, res_type, source_url)
+        resource["format"] = "CSV"
+        resource["created"] = self._datetime_refine(pkg_data.get("created_at", ""))
+        resource["last_modified"] = self._datetime_refine(
+            pkg_data.get("modified_at", "")
+        )
+        resource["name"] = pkg_data["title"]
 
-		base_url = re.findall(r'((http|https):\/\/(\w+\.*)+)', pkg_data['link'])[0][0]
-		d = {
-			u'dataviews': self._get_dataview_resource_url,
-			u'datasets': self._get_dataset_resource_url,
-			u'visualizations': self._get_visualisation_resource_url,
-		}
+        # if res_type is datasets, we can"t predict the format
+        # otherwise we are fetching only csv
+        if res_type == "datasets":
+            fmt = "DATA"
 
-		return d[res_type](pkg_data, source_url, base_url) + u'/?auth_key={}'.format(auth_key)
+            resp = self._make_request(resource["url"])
+            if not resp:
+                pass
+            else:
+                try:
+                    fmt = resp.headers["Content-Disposition"].strip('"').split(".")[-1]
+                except KeyError:
+                    fmt = resp.url.split(".")[-1]
+                    if "application/json" in reresps.headers.get("content-type", ""):
+                        fmt = "JSON"
 
-	def _get_dataview_resource_url(self, pkg_data, source_url=None, base_url=None):
-		return source_url + u'/api/v2/datastreams/{}/data.csv'.format(pkg_data['guid'])
+            resource["format"] = fmt.upper()
 
-	def _get_dataset_resource_url(self, pkg_data, source_url=None, base_url=None):
-		url = pkg_data['link'].strip('/') + u'.download'
-		# 252295/ -> 252295-
-		sub_str = re.search(r'(?P<digits>\d{1,10})(?P<slash>[\/])', url).group(0)
-		return url.replace(sub_str, (sub_str.strip('/') + u'-'))
+        resources.append(resource)
 
-	def _get_visualisation_resource_url(self, pkg_data, source_url=None, base_url=None):
-		res = self._make_request(pkg_data['link'])
+        return resources
 
-		if res:
-			html = bs4(res.text)
-			download_url = html.find(id='id_exportToCSVButton')
-			if download_url:
-				return base_url + download_url['href']
+    def _get_resource_url(self, pkg_data, res_type, source_url):
+        auth_key = self.config.get("auth_key")
 
-		return ""
+        base_url = re.findall(r"((http|https):\/\/(\w+\.*)+)", pkg_data["link"])[0][0]
+        d = {
+            "dataviews": self._get_dataview_resource_url,
+            "datasets": self._get_dataset_resource_url,
+            "visualizations": self._get_visualisation_resource_url,
+        }
+
+        return d[res_type](pkg_data, source_url, base_url) + "/?auth_key={}".format(
+            auth_key
+        )
+
+    def _get_dataview_resource_url(self, pkg_data, source_url=None, base_url=None):
+        return source_url + "/api/v2/datastreams/{}/data.csv".format(pkg_data["guid"])
+
+    def _get_dataset_resource_url(self, pkg_data, source_url=None, base_url=None):
+        url = pkg_data["link"].strip("/") + ".download"
+        # 252295/ -> 252295-
+        sub_str = re.search(r"(?P<digits>\d{1,10})(?P<slash>[\/])", url).group(0)
+        return url.replace(sub_str, (sub_str.strip("/") + "-"))
+
+    def _get_visualisation_resource_url(self, pkg_data, source_url=None, base_url=None):
+        res = self._make_request(pkg_data["link"])
+
+        if res:
+            html = bs4(res.text)
+            download_url = html.find(id="id_exportToCSVButton")
+            if download_url:
+                return base_url + download_url["href"]
+
+        return ""
