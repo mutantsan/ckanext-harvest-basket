@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 import requests
 from datetime import datetime as dt
 from urllib import parse
@@ -98,7 +99,11 @@ class DKANHarvester(HarvesterBase):
 
 		pkg_dicts = []
 
-		package_names = self._get_package_names(package_list_url)
+		try:
+			package_names = self._get_package_names(package_list_url)
+		except ContentFetchError as e:
+			raise SearchError(e)
+
 		package_names = json.loads(package_names)["result"]
 
 		max_datasets = int(self.config.get("max_datasets", 0))
@@ -109,17 +114,20 @@ class DKANHarvester(HarvesterBase):
 			log.debug(f"DKAN: Searching for dataset: {url}")
 
 			try:
-				content = self._get_content(url, timeout=5)
+				resp = self._make_request(url, timeout=5)
 			except ContentFetchError as e:
 				raise SearchError(
 					"DKAN: Error sending request to the remote "
 	 				f"instance {remote_url} using URL {url}. Error: {e}"
 				)
 
+			if not resp:
+				continue
+
 			try:
-				package_dict_page = json.loads(content)["result"]
+				package_dict_page = json.loads(resp.text)["result"]
 			except ValueError as e:
-				log.error(f"DKAN: Response JSON doesn't contain result, {e}")
+				log.error(f"DKAN: Response JSON doesn't contain result: {e}")
 				continue
 
 			# some portals return a dict as result, not a list
@@ -142,17 +150,17 @@ class DKANHarvester(HarvesterBase):
 		return pkg_dicts
 
 	def _get_package_names(self, url):
-		http_request = requests.get(url)
+		resp = requests.get(url)
 
-		if http_request.status_code == 200:
-			return http_request.text
+		if resp.status_code == 200:
+			return resp.text
 
 		log.error("Bad response from remote portal")
 		raise ContentFetchError(
-			"Request status_code: {}".format(http_request.status_code)
+			f"Request status_code: {resp.status_code}, reason: {resp.reason}"
 		)
 
-	def _get_content(self, url: str, timeout=0) -> str:
+	def _make_request(self, url: str, timeout=0) -> Optional[requests.Response]:
 		resp = None
 
 		try:
@@ -167,7 +175,7 @@ class DKANHarvester(HarvesterBase):
 			log.error("The Request error happend during request {}".format(e))
 
 		if resp and resp.status_code == 200:
-			return resp.text
+			return resp
 		elif resp and resp.status_code != 200:
 			log.error(
        			f"{self.info()['title']}: bad response from remote portal: "
@@ -175,7 +183,6 @@ class DKANHarvester(HarvesterBase):
         	)
 
 		sleep(timeout)
-		return ""
 
 	def fetch_stage(self, harvest_object):
 		content = json.loads(harvest_object.content)
