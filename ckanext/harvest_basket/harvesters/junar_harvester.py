@@ -146,6 +146,7 @@ class JunarHarvester(DKANHarvester):
         package_dict["created_at"] = self._datetime_refine(
             package_dict.get("created_at", "")
         )
+        package_dict["type"] = "dataset"
 
         res_type = self._define_resource_type(package_dict["link"])
 
