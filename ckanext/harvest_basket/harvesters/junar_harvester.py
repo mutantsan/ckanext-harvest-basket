@@ -1,11 +1,14 @@
 import logging
+import re
+import json
 from urllib.parse import urljoin
 
-from ckan.lib.helpers import json
+from bs4 import BeautifulSoup as bs4
+
 from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.model import HarvestObject
-from ckanext.harvest.harvesters.ckanharvester import SearchError, ContentFetchError
+from ckanext.harvest.harvesters.ckanharvester import SearchError
 from ckanext.harvest_basket.harvesters import DKANHarvester
 
 
@@ -81,15 +84,15 @@ class JunarHarvester(DKANHarvester):
 		while True:
 			log.info(f"{self.source_type}: Gathering remote dataset: {url}")
 
-			content = self._get_content(url)
-			if not content:
+			resp = self._make_request(url)
+			if not resp:
 				log.debug(
         			f"{self.source_type}: Remote portal doesn't provide resources API. "
 					"Changing API endpoint")
 				url = self._get_all_datasets_json_url(source_url)
 				continue
 
-			pkgs_data = json.loads(content)
+			pkgs_data = json.loads(resp.text)
 			
 			package_ids = set()
 			for pkg in pkgs_data["results"]:
@@ -124,3 +127,124 @@ class JunarHarvester(DKANHarvester):
 	def _get_all_resources_data_url(self, source_url):
 		auth_key = self.config.get("auth_key")
 		return urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
+
+	def fetch_stage(self, harvest_object):
+		source_url = harvest_object.source.url.strip("/")
+		package_dict = json.loads(harvest_object.content)
+
+		package_dict["id"] = package_dict["guid"]
+		package_dict["title"] = package_dict["title"]
+		package_dict["notes"] = package_dict.get("description", "")
+		package_dict["url"] = package_dict.get("link", "")
+		package_dict["author"] = package_dict.get("user", "")
+		package_dict["tags"] = self._fetch_tags(package_dict.get("tags", []))
+		package_dict["created_at"] = self._datetime_refine(package_dict.get("created_at", ""))
+
+		res_type = self._define_resource_type(package_dict["link"])
+
+		package_dict["resources"] = self._fetch_resources(package_dict, res_type, source_url)
+
+		extra = (("frequency", "Update Frequency"),
+				 ("category_name", "Category Name"),
+				 ("license", "License"),
+				 ("mbox", "Mailbox"),
+				 ("res_type", "Resource type"))
+
+		package_dict["extras"] = []
+
+		for field in extra:
+			if package_dict.get(field[0]):
+				package_dict["extras"].append({"key": field[1],
+										  "value": package_dict[field[0]]})
+		
+		# dumps the fetched content and provide it to harvest_object
+		harvest_object.content = json.dumps(package_dict)
+		return True
+
+	def _fetch_tags(self, tags_list):
+		tags = []
+
+		if not tags_list:
+			return tags
+
+		for t in tags_list:
+			tag = {}
+			tag["name"] = munge_tag(t)
+			tags.append(tag)
+
+		return tags
+
+	def _define_resource_type(self, resource_url):
+		res_types = (u'dataviews',
+					 u'datasets',
+					 u'visualizations')
+		for res_type in res_types:
+			if res_type in resource_url:
+				return res_type
+
+	def _fetch_resources(self, pkg_data, res_type, source_url):
+		resources = []
+
+		resource = {}
+
+		resource["package_id"] = pkg_data["guid"]
+		resource["url"] = self._get_resource_url(pkg_data, res_type, source_url)
+		resource["format"] = "CSV"
+		resource["created"] = self._datetime_refine(pkg_data.get("created_at", ""))
+		resource["last_modified"] = self._datetime_refine(
+			pkg_data.get("modified_at", ""))
+		resource["name"] = pkg_data["title"]
+
+		# if res_type is datasets, we can"t predict the format
+		# otherwise we are fetching only csv
+		if res_type == "datasets":
+			fmt = "DATA"
+
+			resp = self._make_request(resource["url"])
+			if not resp:
+				pass
+			else:
+				try:
+					fmt = resp.headers["Content-Disposition"].strip('"').split(".")[-1]
+				except KeyError:
+					fmt = resp.url.split(".")[-1]
+					if "application/json" in reresps.headers.get("content-type", ""):
+						fmt = "JSON"
+
+			resource["format"] = fmt.upper()
+
+		resources.append(resource)
+
+		return resources
+
+	def _get_resource_url(self, pkg_data, res_type, source_url):
+		auth_key = self.config.get(u'auth_key')
+
+		base_url = re.findall(r'((http|https):\/\/(\w+\.*)+)', pkg_data['link'])[0][0]
+		d = {
+			u'dataviews': self._get_dataview_resource_url,
+			u'datasets': self._get_dataset_resource_url,
+			u'visualizations': self._get_visualisation_resource_url,
+		}
+
+		return d[res_type](pkg_data, source_url, base_url) + u'/?auth_key={}'.format(auth_key)
+
+	def _get_dataview_resource_url(self, pkg_data, source_url=None, base_url=None):
+		return source_url + u'/api/v2/datastreams/{}/data.csv'.format(pkg_data['guid'])
+
+	def _get_dataset_resource_url(self, pkg_data, source_url=None, base_url=None):
+		url = pkg_data['link'].strip('/') + u'.download'
+		# 252295/ -> 252295-
+		sub_str = re.search(r'(?P<digits>\d{1,10})(?P<slash>[\/])', url).group(0)
+		return url.replace(sub_str, (sub_str.strip('/') + u'-'))
+
+	def _get_visualisation_resource_url(self, pkg_data, source_url=None, base_url=None):
+		res = self._make_request(pkg_data['link'])
+
+		if res:
+			html = bs4(res.text)
+			download_url = html.find(id='id_exportToCSVButton')
+			if download_url:
+				return base_url + download_url['href']
+
+		return ""
