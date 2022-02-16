@@ -86,6 +86,7 @@ setup(
         [ckan.plugins]
         harvest_basket=ckanext.harvest_basket.plugin:HarvestBasketPlugin
         dkan_harvester=ckanext.harvest_basket.harvesters:DKANHarvester
+        junar_harvester=ckanext.harvest_basket.harvesters:JunarHarvester
 
         [babel.extractors]
         ckan = ckan.lib.extract:extract_ckan
