@@ -1,0 +1,23 @@
+{% ckan_extends %}
+
+{% block extra_config %}
+    {{ super() }}
+    <div class="harvest-checkup-preview" data-module="harvest-change-source-type">
+        <div class="form-group control-full">
+            <label class="control-label" for="field-checkup-preview">
+                {{ _('Source checkup preview')}}
+            </label>
+            <div class="controls">
+                <textarea
+                    disabled
+                    id="field-checkup-preview"
+                    name="checkup-preview"
+                    cols="20" rows="10"
+                    placeholder=""
+                    class="form-control preview-field"
+                ></textarea>
+            </div>
+        </div>
+    </div>
+{% endblock extra_config %}
+
