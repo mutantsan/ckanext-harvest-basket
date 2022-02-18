@@ -1,0 +1,57 @@
+.harvest-types.pending input:checked::after {
+    content: "\f110";
+    position: absolute;
+    font-family: 'FontAwesome';
+    left: -20px;
+
+    animation: rotate 1s infinite linear;
+}
+
+.harvest-checkup-preview.new textarea {
+	box-shadow: 0 0 0 0 rgba(0, 0, 0, 1);
+	transform: scale(1);
+	animation: pulse 1s 1;
+}
+.harvest-checkup-preview.new.error textarea {
+	border-color: red;
+	animation: red-pulse 1s 1;
+}
+
+
+@keyframes rotate{
+    from {
+        transform: rotate(0turn)
+    }
+
+    to {
+        transform: rotate(1turn);
+    }
+}
+
+@keyframes pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.7);
+	}
+
+	70% {
+		box-shadow: 0 0 0 10px rgba(0, 0, 0, 0);
+	}
+
+	100% {
+		box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+	}
+}
+
+@keyframes red-pulse {
+	0% {
+		box-shadow: 0 0 0 0 red;
+	}
+
+	70% {
+		box-shadow: 0 0 0 10px rgba(0, 0, 0, 0);
+	}
+
+	100% {
+		box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+	}
+}
