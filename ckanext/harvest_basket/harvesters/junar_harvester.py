@@ -1,14 +1,9 @@
 import logging
 import re
-import requests
 import json
 from urllib.parse import urljoin
-from typing import Optional
 
 from bs4 import BeautifulSoup as bs4
-
-import ckan.plugins.toolkit as tk
-from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import SearchError
@@ -199,19 +194,6 @@ class JunarHarvester(BasketBasicHarvester):
                 package_dict["extras"].append(
                     {"key": field[1], "value": package_dict[field[0]]}
                 )
-
-    def _fetch_tags(self, tags_list):
-        tags = []
-
-        if not tags_list:
-            return tags
-
-        for t in tags_list:
-            tag = {}
-            tag["name"] = munge_tag(t)
-            tags.append(tag)
-
-        return tags
 
     def _define_resource_type(self, resource_url):
         res_types = ("dataviews", "datasets", "visualizations")

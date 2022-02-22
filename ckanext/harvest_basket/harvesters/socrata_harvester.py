@@ -37,7 +37,7 @@ class SocrataHarvester(BasketBasicHarvester):
 		self._set_config(harvest_job.source.config)
 
 		try:
-			pkg_dicts = self._search_for_datasets()
+			pkg_dicts = self._search_for_datasets(self.source_url)
 		except SearchError as e:
 			log.error("Searching for datasets failed: {}".format(e))
 			self._save_gather_error(
@@ -149,26 +149,7 @@ class SocrataHarvester(BasketBasicHarvester):
 			return pkg_dicts[:max_datasets]
 		return pkg_dicts
 
-	def _tag_fetch(self, tag_list: list[str]) -> list[dict[str, str]]:
-		"""Converts socrata tags to CKAN
 
-		Args:
-			tag_list (list[str]): a list of tag names
-
-		Returns:
-			list[dict[str, str]]: a list of tag dicts
-		"""
-		tags = []
-
-		if not tag_list:
-			return tags
-
-		for t in tag_list:
-			tag = {}
-			tag["name"] = munge_tag(t)
-			tags.append(tag)
-
-		return tags
 
 	def _get_resource_url(self, pkg_data: dict):
 		"""Fetches the resource URL
@@ -377,7 +358,7 @@ class SocrataHarvester(BasketBasicHarvester):
 			content (dict): remote package data
 		"""
 		content["resources"] = self._resources_fetch(content)
-		content["tags"] = self._tag_fetch(content.get("tags", []))
+		content["tags"] = self._fetch_tags(content.get("tags", []))
 		content["name"] = self._ensure_name_is_unique(content.get("name", ""))
 		content["notes"] = content.get("description", "")
 		content["private"] = False

@@ -1,5 +1,6 @@
 import logging
 import requests
+import json
 from urllib import parse
 from urllib.parse import urljoin
 from html import unescape
@@ -7,10 +8,7 @@ from time import sleep
 
 from html2markdown import convert
 
-from ckan import model
-from ckan.lib.helpers import json
 from ckan.lib.munge import munge_tag
-from ckan.plugins import toolkit as tk
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import ContentFetchError, SearchError
@@ -88,12 +86,6 @@ class DKANHarvester(BasketBasicHarvester):
 
         return object_ids
 
-    def _set_config(self, config_str):
-        if config_str:
-            self.config = json.loads(config_str)
-        else:
-            self.config = {}
-
     def _search_for_datasets(self, remote_url):
         self.url = urljoin(remote_url, self.PACKAGE_LIST)
         pkg_dicts = []
@@ -112,13 +104,7 @@ class DKANHarvester(BasketBasicHarvester):
             url = f"{remote_url}{self.PACKAGE_SHOW}?{parse.urlencode({'id': package_name})}"
             log.debug(f"{self.source_type}: Searching for dataset: {url}")
 
-            try:
-                resp = self._make_request(url)
-            except ContentFetchError as e:
-                raise SearchError(
-                    f"{self.source_type}: Error sending request to the remote "
-                    f"instance {remote_url} using URL {url}. Error: {e}"
-                )
+            resp = self._make_request(url)
 
             if not resp:
                 continue
@@ -258,87 +244,3 @@ class DKANHarvester(BasketBasicHarvester):
             return int(float(value) * metric_sys[metric])
 
         return 0
-
-    def import_stage(self, harvest_object):
-        self.base_context = {
-            "model": model,
-            "session": model.Session,
-            "user": self._get_user_name(),
-        }
-
-        if not harvest_object:
-            log.error("No harvest object received")
-            return False
-
-        if harvest_object.content is None:
-            log.error(f"Empty content for object {harvest_object.id}: {harvest_object}")
-            return False
-
-        package_dict = json.loads(harvest_object.content)
-        self.transmute_data(package_dict)
-
-        if package_dict.get("type") == "harvest":
-            log.info("Remote dataset is a harvest source, ignoring...")
-            return True
-
-        default_extras = self.config.get("default_extras", {})
-
-        def get_extra(key, package_dict):
-            for extra in package_dict.get("extras", []):
-                if extra["key"] == key:
-                    return extra
-
-        if default_extras:
-            # you can disable extras override by defining override_extras to True in config
-            override_extras = self.config.get("override_extras", False)
-            if "extras" not in package_dict:
-                package_dict["extras"] = []
-
-            for k, v in default_extras.items():
-                existing_extra = get_extra(k, package_dict)
-                if existing_extra and not override_extras:
-                    continue
-                if existing_extra:
-                    package_dict["extras"].remove(existing_extra)
-
-                if isinstance(v, str):
-                    v = v.format(
-                        harvest_source_id=harvest_object.job.source.id,
-                        harvest_source_url=harvest_object.job.source.url.strip("/"),
-                        harvest_source_title=harvest_object.job.source.title,
-                        harvest_job_id=harvest_object.job.id,
-                        harvest_object_id=harvest_object.id,
-                        dataset_id=package_dict["id"],
-                    )
-
-                package_dict["extras"].append({"key": k, "value": v})
-
-        # Local harvest source organization
-        source_dataset = tk.get_action("package_show")(
-            self.base_context, {"id": harvest_object.source.id}
-        )
-        local_org = source_dataset.get("owner_org")
-
-        package_dict["owner_org"] = local_org
-
-        try:
-            result = self._create_or_update_package(
-                package_dict, harvest_object, package_dict_form="package_show"
-            )
-            return result
-        except tk.ValidationError as e:
-            log.error(
-                "Invalid package with GUID {}: {}".format(
-                    (harvest_object.guid, e.error_dict), harvest_object
-                )
-            )
-        except Exception as e:
-            self._save_object_error(str(e), harvest_object, "Import")
-
-    def transmute_data(self, data):
-        transmute_schema = self.config.get("tsm_schema")
-
-        if transmute_schema:
-            tk.get_action("tsm_transmute")(
-                self.base_context, {"data": data, "schema": transmute_schema}
-            )
