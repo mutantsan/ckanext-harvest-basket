@@ -1,8 +1,10 @@
+from abc import abstractclassmethod
 import logging
 from typing import Optional
 import requests
 from datetime import datetime as dt
 from urllib import parse
+from urllib.parse import urljoin
 from html import unescape
 from time import sleep
 from dateutil import parser
@@ -15,9 +17,8 @@ from ckan.lib.munge import munge_tag
 from ckan.plugins import toolkit as tk
 
 from ckanext.harvest.model import HarvestObject
-from ckanext.harvest.harvesters.base import HarvesterBase
 from ckanext.harvest.harvesters.ckanharvester import ContentFetchError, SearchError
-
+from ckanext.harvest.harvesters.base import HarvesterBase
 
 log = logging.getLogger(__name__)
 
@@ -34,25 +35,26 @@ class DKANHarvester(HarvesterBase):
         }
 
     def gather_stage(self, harvest_job):
-        source_url = harvest_job.source.url.strip("/")
-        log.info(f"DKAN: Starting gather_stage {source_url}")
+        self.source_type = "DKAN"
+        self.source_url = harvest_job.source.url.strip("/")
+        log.info(f"{self.source_type}: Starting gather_stage {self.source_url}")
 
         self._set_config(harvest_job.source.config)
-        log.info(f"DKAN: Using config: {self.config}")
+        log.info(f"{self.source_type}: Using config: {self.config}")
 
         try:
-            pkg_dicts = self._search_for_datasets(source_url)
+            pkg_dicts = self._search_for_datasets(self.source_url)
         except SearchError as e:
-            log.error(f"DKAN: Searching for datasets failed: {e}")
+            log.error(f"{self.source_type}: Searching for datasets failed: {e}")
             self._save_gather_error(
-                f"DKAN: Unable to search remote portla for datasets: {source_url}",
+                f"{self.source_type}: Unable to search remote portla for datasets: {self.source_url}",
                 harvest_job,
             )
             return []
 
         if not pkg_dicts:
             self._save_gather_error(
-                f"DKAN: No datasets found at remote portal: {source_url}",
+                f"{self.source_type}: No datasets found at remote portal: {self.source_url}",
                 harvest_job,
             )
             return []
@@ -64,7 +66,7 @@ class DKANHarvester(HarvesterBase):
 
             if pkg_dict["id"] in package_ids:
                 log.debug(
-                    f"DKAN: Discarding duplicate dataset {pkg_dict['id']}. "
+                    f"{self.source_type}: Discarding duplicate dataset {pkg_dict['id']}. "
                     "Probably, due to datasets being changed in process of harvesting"
                 )
                 continue
@@ -72,7 +74,7 @@ class DKANHarvester(HarvesterBase):
             package_ids.add(pkg_dict["id"])
 
             log.info(
-                f"DKAN: Creating harvest_object for {pkg_dict.get('name', '')} {pkg_dict['id']}"
+                f"{self.source_type}: Creating harvest_object for {pkg_dict.get('name', '')} {pkg_dict['id']}"
             )
 
             try:
@@ -82,7 +84,7 @@ class DKANHarvester(HarvesterBase):
                 obj.save()
                 object_ids.append(obj.id)
             except TypeError as e:
-                log.debug(f"DKAN: The error occured during the gather stage: {str(e)}")
+                log.debug(f"{self.source_type}: The error occured during the gather stage: {str(e)}")
                 self._save_gather_error(str(e), harvest_job)
                 continue
 
@@ -95,12 +97,11 @@ class DKANHarvester(HarvesterBase):
             self.config = {}
 
     def _search_for_datasets(self, remote_url):
-        package_list_url = remote_url + self.PACKAGE_LIST
-
+        self.url = urljoin(remote_url, self.PACKAGE_LIST)
         pkg_dicts = []
 
         try:
-            package_names = self._get_package_names(package_list_url)
+            package_names = self._get_package_names(self.url)
         except ContentFetchError as e:
             raise SearchError(e)
 
@@ -111,13 +112,13 @@ class DKANHarvester(HarvesterBase):
 
         for package_name in set(package_names):
             url = f"{remote_url}{self.PACKAGE_SHOW}?{parse.urlencode({'id': package_name})}"
-            log.debug(f"DKAN: Searching for dataset: {url}")
+            log.debug(f"{self.source_type}: Searching for dataset: {url}")
 
             try:
                 resp = self._make_request(url, timeout=5)
             except ContentFetchError as e:
                 raise SearchError(
-                    "DKAN: Error sending request to the remote "
+                    f"{self.source_type}: Error sending request to the remote "
                     f"instance {remote_url} using URL {url}. Error: {e}"
                 )
 
@@ -127,7 +128,7 @@ class DKANHarvester(HarvesterBase):
             try:
                 package_dict_page = json.loads(resp.text)["result"]
             except ValueError as e:
-                log.error(f"DKAN: Response JSON doesn't contain result: {e}")
+                log.error(f"{self.source_type}: Response JSON doesn't contain result: {e}")
                 continue
 
             # some portals return a dict as result, not a list
@@ -145,7 +146,7 @@ class DKANHarvester(HarvesterBase):
             # you can use delay parameter in config
             if delay > 0:
                 sleep(delay)
-                log.info(f"DKAN: Sleeping for {delay} second(s)")
+                log.info(f"{self.source_type}: Sleeping for {delay} second(s)")
 
         return pkg_dicts
 
@@ -174,18 +175,25 @@ class DKANHarvester(HarvesterBase):
         except requests.exceptions.RequestException as e:
             log.error("The Request error happend during request {}".format(e))
 
-        if resp and resp.status_code == 200:
-            return resp
-        elif resp and resp.status_code != 200:
-            log.error(
+        try:
+            if resp.status_code == 200:
+                return resp
+            err_msg = (
                 f"{self.info()['title']}: bad response from remote portal: "
                 f"{resp.status_code}, {resp.reason}"
             )
-
-        sleep(timeout)
-
+            log.error(err_msg)
+            raise tk.ValidationError({self.source_type: err_msg})
+        except AttributeError:
+            return
+        
     def fetch_stage(self, harvest_object):
-        content = json.loads(harvest_object.content)
+        package_dict = json.loads(harvest_object.content)
+        self._pre_map_stage(package_dict)
+        harvest_object.content = json.dumps(package_dict)
+        return True
+
+    def _pre_map_stage(self, content: dict):
         content["resources"] = self._fetch_resources(
             content.get("resources"), content.get("id")
         )
@@ -206,12 +214,7 @@ class DKANHarvester(HarvesterBase):
 
         for key in ["groups", "log_message", "revision_timestamp", "creator_user_id"]:
             content.pop(key, None)
-
-        content = json.dumps(content)
-        harvest_object.content = content
-
-        return True
-
+        
     def _fetch_tags(self, tags_list):
         tags = []
         if tags_list:
@@ -390,3 +393,41 @@ class DKANHarvester(HarvesterBase):
             tk.get_action("tsm_transmute")(
                 self.base_context, {"data": data, "schema": transmute_schema}
             )
+
+    def make_checkup(self, source_url: str, config: dict):
+        """Makes a test fetch of 1 dataset from the remote source
+
+
+        Args:
+            source_url (str): remote portal URL
+            config (dict): config dictionary with some options to adjust
+                            harvester (e.g schema, max_datasets, delay)
+
+        Raises:
+            tk.ValidationError: raises validation error if the fetch failed
+                                returns all the information about endpoint
+                                and occured error
+
+        Returns:
+            dict: must return a remote dataset meta dict
+        """
+        self.config = config
+        self.config.update({
+            "max_datasets": 1,
+        })
+
+        self.source_url = source_url
+        self.source_type = "DKAN"
+        
+        try:
+            pkg_dicts: list = self._search_for_datasets(self.source_url)
+        except Exception as e:
+            raise tk.ValidationError("Checkup failed. Check your source URL \n"
+                    f"Endpoint we used: {getattr(self, 'url', '')} \n"
+                    f"Error: {e}")
+
+        if not pkg_dicts:
+            return "No datasets found on remote portal: {self.source_url}"
+        
+        self._pre_map_stage(pkg_dicts[0])
+        return pkg_dicts[0]
