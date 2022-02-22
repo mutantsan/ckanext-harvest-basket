@@ -6,21 +6,31 @@ ckan.module("harvest-change-source-type", function ($, _) {
         initialize: function () {
             this.client = this.sandbox.client;
             this.preview = ".harvest-checkup-preview";
+            this.harvest_types = $(".harvest-types");
+
             this._check_source(this._get_selected_type());
 
             $(".harvest-types input").change(function (e) {
-                this._check_source(e.target.value)
+                this._check_source(e.target.value);
+            }.bind(this))
+
+            $("#field-url").on("blur", function () {
+                this._check_source(this._get_selected_type());
             }.bind(this))
         },
 
         _check_source: function (source_name) {
             var that = this;
+            var source_url = that._get_source_url();
+            var config = that._get_source_config();
 
             $(that.preview).removeClass("new error");
             this._add_pending_state();
 
             that.client.call('POST', 'harvest_basket_check_source', {
-                source_name: source_name
+                source_name: source_name,
+                source_url: source_url,
+                config: config
             }, function (response) {
                 that._show_check_result(response.result)
                 that._remove_pending_state();
@@ -38,22 +48,33 @@ ckan.module("harvest-change-source-type", function ($, _) {
             var that = this;
 
             $(that.preview + " .preview-field").text(
-                $.type(check_result) == "string" ? check_result : JSON.stringify(check_result)
+                $.type(check_result) == "string" ? check_result : JSON.stringify(check_result, undefined, 2)
             )
 
             $(that.preview).toggleClass("new");
         },
 
         _get_selected_type: function () {
-            return $(".harvest-types input:checked").val()
+            var that = this;
+            return that.harvest_types.find("input:checked").val()
         },
 
         _add_pending_state: function () {
-            $(".harvest-types").addClass("pending");
+            var that = this;
+            that.harvest_types.addClass("pending");
         },
 
         _remove_pending_state: function () {
-            $(".harvest-types").removeClass("pending")
+            var that = this;
+            that.harvest_types.removeClass("pending");
+        },
+
+        _get_source_url: function () {
+            return $("#field-url").val();
+        },
+
+        _get_source_config: function () {
+            return $("#field-config").val();
         }
     };
 });
