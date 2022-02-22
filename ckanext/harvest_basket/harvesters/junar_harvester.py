@@ -12,13 +12,14 @@ from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import SearchError
-from ckanext.harvest_basket.harvesters import DKANHarvester
+
+from ckanext.harvest_basket.harvesters.base_harvester import BasketBasicHarvester
 
 
 log = logging.getLogger(__name__)
 
 
-class JunarHarvester(DKANHarvester):
+class JunarHarvester(BasketBasicHarvester):
     def info(self):
         return {
             "name": "junar",
@@ -287,71 +288,3 @@ class JunarHarvester(DKANHarvester):
                 return base_url + download_url["href"]
 
         return ""
-
-    def _make_request(self, url: str) -> Optional[requests.Response]:
-        resp = None
-
-        try:
-            resp = requests.get(url)
-        except requests.exceptions.HTTPError as e:
-            log.error("The HTTP error happend during request {}".format(e))
-        except requests.exceptions.ConnectTimeout as e:
-            log.error("Connection timeout: {}".format(e))
-        except requests.exceptions.ConnectionError as e:
-            log.error("The Connection error happend during request {}".format(e))
-        except requests.exceptions.RequestException as e:
-            log.error("The Request error happend during request {}".format(e))
-
-        try:
-            if resp.status_code == 200:
-                return resp
-            err_msg = (
-                f"{self.info()['title']}: bad response from remote portal: "
-                f"{resp.status_code}, {resp.json().get('description')}"
-            )
-            log.error(err_msg)
-            raise tk.ValidationError({self.source_type: err_msg})
-        except AttributeError:
-            return
-
-    def make_checkup(self, source_url: str, config: dict):
-        """Makes a test fetch of 1 dataset from the remote source
-
-
-        Args:
-            source_url (str): remote portal URL
-            config (dict): config dictionary with some options to adjust
-                            harvester (e.g schema, max_datasets, delay)
-
-        Raises:
-            tk.ValidationError: raises validation error if the fetch failed
-                                returns all the information about endpoint
-                                and occured error
-
-        Returns:
-            dict: must return a remote dataset meta dict
-        """
-        self.config = config
-        self.config.update(
-            {
-                "max_datasets": 1,
-            }
-        )
-
-        self.source_url = source_url
-        self.source_type = "Junar"
-
-        try:
-            pkg_dicts = self._search_for_datasets(source_url)
-        except Exception as e:
-            raise tk.ValidationError(
-                "Checkup failed. Check your source URL \n"
-                f"Endpoint we used: {getattr(self, 'url', '')} \n"
-                f"Error: {e}"
-            )
-
-        if not pkg_dicts:
-            return "No datasets found on remote portal: {source_url}"
-
-        self._pre_map_stage(pkg_dicts[0])
-        return pkg_dicts[0]

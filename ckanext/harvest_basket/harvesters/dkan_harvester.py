@@ -1,13 +1,9 @@
-from abc import abstractclassmethod
 import logging
-from typing import Optional
 import requests
-from datetime import datetime as dt
 from urllib import parse
 from urllib.parse import urljoin
 from html import unescape
 from time import sleep
-from dateutil import parser
 
 from html2markdown import convert
 
@@ -18,12 +14,14 @@ from ckan.plugins import toolkit as tk
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import ContentFetchError, SearchError
-from ckanext.harvest.harvesters.base import HarvesterBase
+
+from ckanext.harvest_basket.harvesters.base_harvester import BasketBasicHarvester
+
 
 log = logging.getLogger(__name__)
 
 
-class DKANHarvester(HarvesterBase):
+class DKANHarvester(BasketBasicHarvester):
     PACKAGE_LIST: str = "/api/3/action/package_list"
     PACKAGE_SHOW: str = "/api/3/action/package_show"
 
@@ -115,7 +113,7 @@ class DKANHarvester(HarvesterBase):
             log.debug(f"{self.source_type}: Searching for dataset: {url}")
 
             try:
-                resp = self._make_request(url, timeout=5)
+                resp = self._make_request(url)
             except ContentFetchError as e:
                 raise SearchError(
                     f"{self.source_type}: Error sending request to the remote "
@@ -161,31 +159,7 @@ class DKANHarvester(HarvesterBase):
             f"Request status_code: {resp.status_code}, reason: {resp.reason}"
         )
 
-    def _make_request(self, url: str, timeout=0) -> Optional[requests.Response]:
-        resp = None
 
-        try:
-            resp = requests.get(url)
-        except requests.exceptions.HTTPError as e:
-            log.error("The HTTP error happend during request {}".format(e))
-        except requests.exceptions.ConnectTimeout as e:
-            log.error("Connection timeout: {}".format(e))
-        except requests.exceptions.ConnectionError as e:
-            log.error("The Connection error happend during request {}".format(e))
-        except requests.exceptions.RequestException as e:
-            log.error("The Request error happend during request {}".format(e))
-
-        try:
-            if resp.status_code == 200:
-                return resp
-            err_msg = (
-                f"{self.info()['title']}: bad response from remote portal: "
-                f"{resp.status_code}, {resp.reason}"
-            )
-            log.error(err_msg)
-            raise tk.ValidationError({self.source_type: err_msg})
-        except AttributeError:
-            return
         
     def fetch_stage(self, harvest_object):
         package_dict = json.loads(harvest_object.content)
@@ -265,31 +239,6 @@ class DKANHarvester(HarvesterBase):
             return ""
         string = unescape(string)
         return convert(string)
-
-    def _datetime_refine(self, string):
-        now = dt.now().isoformat()
-
-        # if date stored as timestamp
-        try:
-            if string and int(string):
-                formated_data = dt.fromtimestamp(string).isoformat()
-                return formated_data
-        except ValueError:
-            return now
-
-        # if date stored as string
-        if string:
-            # some portals returns modified_data with this substring
-            if string.startswith("Date changed"):
-                string = string[13:]
-
-            try:
-                formated_data = parser.parse(string, ignoretz=True).isoformat()
-            except ValueError:
-                formated_data = now
-
-            return formated_data
-        return now
 
     def _size_refine(self, size_string):
         # if resource size stored as int
@@ -393,41 +342,3 @@ class DKANHarvester(HarvesterBase):
             tk.get_action("tsm_transmute")(
                 self.base_context, {"data": data, "schema": transmute_schema}
             )
-
-    def make_checkup(self, source_url: str, config: dict):
-        """Makes a test fetch of 1 dataset from the remote source
-
-
-        Args:
-            source_url (str): remote portal URL
-            config (dict): config dictionary with some options to adjust
-                            harvester (e.g schema, max_datasets, delay)
-
-        Raises:
-            tk.ValidationError: raises validation error if the fetch failed
-                                returns all the information about endpoint
-                                and occured error
-
-        Returns:
-            dict: must return a remote dataset meta dict
-        """
-        self.config = config
-        self.config.update({
-            "max_datasets": 1,
-        })
-
-        self.source_url = source_url
-        self.source_type = "DKAN"
-        
-        try:
-            pkg_dicts: list = self._search_for_datasets(self.source_url)
-        except Exception as e:
-            raise tk.ValidationError("Checkup failed. Check your source URL \n"
-                    f"Endpoint we used: {getattr(self, 'url', '')} \n"
-                    f"Error: {e}")
-
-        if not pkg_dicts:
-            return "No datasets found on remote portal: {self.source_url}"
-        
-        self._pre_map_stage(pkg_dicts[0])
-        return pkg_dicts[0]
