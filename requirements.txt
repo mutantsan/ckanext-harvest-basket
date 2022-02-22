@@ -1,3 +1,4 @@
 html2markdown
+geojson~=2.5.0
 
 ckanext-transmute~=1.0.1
