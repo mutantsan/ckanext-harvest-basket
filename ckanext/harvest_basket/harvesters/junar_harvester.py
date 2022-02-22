@@ -1,10 +1,13 @@
 import logging
 import re
+import requests
 import json
 from urllib.parse import urljoin
+from typing import Optional
 
 from bs4 import BeautifulSoup as bs4
 
+import ckan.plugins.toolkit as tk
 from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.model import HarvestObject
@@ -29,17 +32,19 @@ class JunarHarvester(DKANHarvester):
 
     def gather_stage(self, harvest_job):
         self.source_type = "Junar"
-        source_url = harvest_job.source.url.strip("/")
-        log.info(f"{self.source_type}: Junar gather stage in progress: {source_url}")
+        self.source_url = harvest_job.source.url.strip("/")
+        log.info(
+            f"{self.source_type}: gather stage in progress: {self.source_url}"
+        )
 
         self._set_config(harvest_job.source.config)
 
         try:
-            pkg_dicts = self._search_for_datasets(source_url)
+            pkg_dicts = self._search_for_datasets(self.source_url)
         except SearchError as e:
             log.error(f"{self.source_type}: searching for datasets failed: {e}")
             self._save_gather_error(
-                f"{self.source_type}: unable to search the remote Junar portal for datasets: {source_url}",
+                f"{self.source_type}: unable to search the remote portal for datasets: {self.source_url}",
                 harvest_job,
             )
             return []
@@ -47,7 +52,7 @@ class JunarHarvester(DKANHarvester):
         if not pkg_dicts:
             log.error(f"{self.source_type}: searching returns empty result.")
             self._save_gather_error(
-                f"{self.source_type}: no datasets found at Junar remote portal: {source_url}",
+                f"{self.source_type}: no datasets found at remote portal: {self.source_url}",
                 harvest_job,
             )
             return []
@@ -77,23 +82,31 @@ class JunarHarvester(DKANHarvester):
 
     def _search_for_datasets(self, source_url):
         pkg_dicts = []
-        url = self._get_all_resources_data_url(source_url)
+        self.url = self._get_all_resources_data_url(source_url)
 
         max_datasets = int(self.config.get("max_datasets", 0))
 
         while True:
-            log.info(f"{self.source_type}: Gathering remote dataset: {url}")
+            log.info(f"{self.source_type}: Gathering remote dataset: {self.url}")
 
-            resp = self._make_request(url)
-            if not resp:
+            resp = self._make_request(self.url)
+
+            if resp:
+                try:
+                    pkgs_data = resp.json()
+                except ValueError as e:
+                    raise SearchError(
+                        f"{self.source_type}: invalid response type, not a JSON"
+                    )
+            else:
+                if "api/v2/resources" in self.url:
+                    break
                 log.debug(
                     f"{self.source_type}: Remote portal doesn't provide resources API. "
                     "Changing API endpoint"
                 )
-                url = self._get_all_datasets_json_url(source_url)
+                self.url = self._get_all_datasets_json_url(source_url)
                 continue
-
-            pkgs_data = json.loads(resp.text)
 
             package_ids = set()
             for pkg in pkgs_data["results"]:
@@ -124,19 +137,35 @@ class JunarHarvester(DKANHarvester):
         return pkg_dicts
 
     def _get_all_datasets_json_url(self, source_url):
-        auth_key = self.config.get("auth_key")
+        auth_key = self._get_auth_key()
+
         return urljoin(
             source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50"
         )
 
     def _get_all_resources_data_url(self, source_url):
-        auth_key = self.config.get("auth_key")
+        auth_key = self._get_auth_key()
+
         return urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
 
-    def fetch_stage(self, harvest_object):
-        source_url = harvest_object.source.url.strip("/")
-        package_dict = json.loads(harvest_object.content)
+    def _get_auth_key(self):
+        auth_key = self.config.get("auth_key")
 
+        if not auth_key:
+            self.url = self.source_url
+            raise SearchError(
+                f"{self.source_type}: missing `auth_key`. "
+                "Please, provide it via the config"
+            )
+        return auth_key
+
+    def fetch_stage(self, harvest_object):
+        package_dict = json.loads(harvest_object.content)
+        self._pre_map_stage(package_dict)
+        harvest_object.content = json.dumps(package_dict)
+        return True
+
+    def _pre_map_stage(self, package_dict: dict):
         package_dict["id"] = package_dict["guid"]
         package_dict["title"] = package_dict["title"]
         package_dict["notes"] = package_dict.get("description", "")
@@ -151,7 +180,7 @@ class JunarHarvester(DKANHarvester):
         res_type = self._define_resource_type(package_dict["link"])
 
         package_dict["resources"] = self._fetch_resources(
-            package_dict, res_type, source_url
+            package_dict, res_type, self.source_url
         )
 
         extra = (
@@ -169,10 +198,6 @@ class JunarHarvester(DKANHarvester):
                 package_dict["extras"].append(
                     {"key": field[1], "value": package_dict[field[0]]}
                 )
-
-        # dumps the fetched content and provide it to harvest_object
-        harvest_object.content = json.dumps(package_dict)
-        return True
 
     def _fetch_tags(self, tags_list):
         tags = []
@@ -230,7 +255,7 @@ class JunarHarvester(DKANHarvester):
         return resources
 
     def _get_resource_url(self, pkg_data, res_type, source_url):
-        auth_key = self.config.get("auth_key")
+        auth_key = self._get_auth_key()
 
         base_url = re.findall(r"((http|https):\/\/(\w+\.*)+)", pkg_data["link"])[0][0]
         d = {
@@ -262,3 +287,71 @@ class JunarHarvester(DKANHarvester):
                 return base_url + download_url["href"]
 
         return ""
+
+    def _make_request(self, url: str) -> Optional[requests.Response]:
+        resp = None
+
+        try:
+            resp = requests.get(url)
+        except requests.exceptions.HTTPError as e:
+            log.error("The HTTP error happend during request {}".format(e))
+        except requests.exceptions.ConnectTimeout as e:
+            log.error("Connection timeout: {}".format(e))
+        except requests.exceptions.ConnectionError as e:
+            log.error("The Connection error happend during request {}".format(e))
+        except requests.exceptions.RequestException as e:
+            log.error("The Request error happend during request {}".format(e))
+
+        try:
+            if resp.status_code == 200:
+                return resp
+            err_msg = (
+                f"{self.info()['title']}: bad response from remote portal: "
+                f"{resp.status_code}, {resp.json().get('description')}"
+            )
+            log.error(err_msg)
+            raise tk.ValidationError({self.source_type: err_msg})
+        except AttributeError:
+            return
+
+    def make_checkup(self, source_url: str, config: dict):
+        """Makes a test fetch of 1 dataset from the remote source
+
+
+        Args:
+            source_url (str): remote portal URL
+            config (dict): config dictionary with some options to adjust
+                            harvester (e.g schema, max_datasets, delay)
+
+        Raises:
+            tk.ValidationError: raises validation error if the fetch failed
+                                returns all the information about endpoint
+                                and occured error
+
+        Returns:
+            dict: must return a remote dataset meta dict
+        """
+        self.config = config
+        self.config.update(
+            {
+                "max_datasets": 1,
+            }
+        )
+
+        self.source_url = source_url
+        self.source_type = "Junar"
+
+        try:
+            pkg_dicts = self._search_for_datasets(source_url)
+        except Exception as e:
+            raise tk.ValidationError(
+                "Checkup failed. Check your source URL \n"
+                f"Endpoint we used: {getattr(self, 'url', '')} \n"
+                f"Error: {e}"
+            )
+
+        if not pkg_dicts:
+            return "No datasets found on remote portal: {source_url}"
+
+        self._pre_map_stage(pkg_dicts[0])
+        return pkg_dicts[0]
