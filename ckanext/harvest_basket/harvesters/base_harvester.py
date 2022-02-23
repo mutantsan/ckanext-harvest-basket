@@ -5,6 +5,9 @@ import json
 from typing import Optional
 from datetime import datetime as dt
 from dateutil import parser
+from html import unescape
+
+from html2markdown import convert
 
 import ckan.plugins.toolkit as tk
 from ckan import model
@@ -41,6 +44,12 @@ class BasketBasicHarvester(HarvesterBase):
 
             return formated_data
         return now
+
+    def _description_refine(self, string):
+        if not string:
+            return ""
+        string = unescape(string)
+        return convert(string)
 
     def _make_request(
         self, url: str, stream: bool = False
@@ -117,7 +126,7 @@ class BasketBasicHarvester(HarvesterBase):
             )
 
         if not pkg_dicts:
-            return "No datasets found on remote portal: {source_url}"
+            return f"No datasets found on remote portal: {source_url}"
 
         self._pre_map_stage(pkg_dicts[0])
         return pkg_dicts[0]

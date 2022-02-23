@@ -3,10 +3,7 @@ import requests
 import json
 from urllib import parse
 from urllib.parse import urljoin
-from html import unescape
 from time import sleep
-
-from html2markdown import convert
 
 from ckan.lib.munge import munge_tag
 
@@ -221,12 +218,6 @@ class DKANHarvester(BasketBasicHarvester):
                 resources.append(resource)
 
         return resources
-
-    def _description_refine(self, string):
-        if not string:
-            return ""
-        string = unescape(string)
-        return convert(string)
 
     def _size_refine(self, size_string):
         # if resource size stored as int

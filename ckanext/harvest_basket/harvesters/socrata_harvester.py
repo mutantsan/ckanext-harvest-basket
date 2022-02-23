@@ -129,7 +129,7 @@ class SocrataHarvester(BasketBasicHarvester):
             try:
                 pkg_dicts_page = json.loads(resp.text)
             except ValueError as e:
-                raise SearchError(f"Response from remote CKAN was not a JSON: {e}")
+                raise SearchError(f"Response from remote portal was not a JSON: {e}")
 
             pkg_dicts_page = [p for p in pkg_dicts_page]
 
