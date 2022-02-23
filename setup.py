@@ -72,6 +72,7 @@ setup(
         dkan_harvester=ckanext.harvest_basket.harvesters:DKANHarvester
         junar_harvester=ckanext.harvest_basket.harvesters:JunarHarvester
         socrata_harvester=ckanext.harvest_basket.harvesters:SocrataHarvester
+        arcgis_harvester=ckanext.harvest_basket.harvesters:ArcGISHarvester
 
         [babel.extractors]
         ckan = ckan.lib.extract:extract_ckan

@@ -6,9 +6,9 @@ from typing import Any, Optional
 
 import ckan.plugins.toolkit as tk
 
-from ckanext.harvest_basket.harvesters import DKANHarvester
-from ckanext.harvest_basket.harvesters import JunarHarvester
-from ckanext.harvest_basket.harvesters import SocrataHarvester
+from ckanext.harvest_basket.harvesters import (
+    DKANHarvester, JunarHarvester, SocrataHarvester, ArcGISHarvester
+)
 
 
 @tk.side_effect_free
@@ -26,6 +26,7 @@ def check_source(ctx: dict[str, Any], data_dict: dict) -> dict[str, Any]:
         "dkan": DKANHarvester,
         "junar": JunarHarvester,
         "socrata": SocrataHarvester,
+        "arcgis": ArcGISHarvester
     }
 
     harvester_class = sources.get(source_name)
