@@ -29,9 +29,7 @@ class JunarHarvester(BasketBasicHarvester):
     def gather_stage(self, harvest_job):
         self.source_type = "Junar"
         self.source_url = harvest_job.source.url.strip("/")
-        log.info(
-            f"{self.source_type}: gather stage in progress: {self.source_url}"
-        )
+        log.info(f"{self.source_type}: gather stage in progress: {self.source_url}")
 
         self._set_config(harvest_job.source.config)
 

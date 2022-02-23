@@ -80,7 +80,9 @@ class DKANHarvester(BasketBasicHarvester):
                 obj.save()
                 object_ids.append(obj.id)
             except TypeError as e:
-                log.debug(f"{self.source_type}: The error occured during the gather stage: {str(e)}")
+                log.debug(
+                    f"{self.source_type}: The error occured during the gather stage: {str(e)}"
+                )
                 self._save_gather_error(str(e), harvest_job)
                 continue
 
@@ -112,7 +114,9 @@ class DKANHarvester(BasketBasicHarvester):
             try:
                 package_dict_page = json.loads(resp.text)["result"]
             except ValueError as e:
-                log.error(f"{self.source_type}: Response JSON doesn't contain result: {e}")
+                log.error(
+                    f"{self.source_type}: Response JSON doesn't contain result: {e}"
+                )
                 continue
 
             # some portals return a dict as result, not a list
@@ -145,8 +149,6 @@ class DKANHarvester(BasketBasicHarvester):
             f"Request status_code: {resp.status_code}, reason: {resp.reason}"
         )
 
-
-        
     def fetch_stage(self, harvest_object):
         package_dict = json.loads(harvest_object.content)
         self._pre_map_stage(package_dict)
@@ -174,7 +176,7 @@ class DKANHarvester(BasketBasicHarvester):
 
         for key in ["groups", "log_message", "revision_timestamp", "creator_user_id"]:
             content.pop(key, None)
-        
+
     def _fetch_tags(self, tags_list):
         tags = []
         if tags_list:
