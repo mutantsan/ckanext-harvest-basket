@@ -1,11 +1,11 @@
 from __future__ import annotations
 import json
 import logging
-from urllib import parse
+from typing import Any
 
 
-from ckan import model
 from ckan.plugins import toolkit as tk
+from ckan.lib.munge import munge_name
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import ContentFetchError, SearchError
@@ -79,10 +79,10 @@ class ArcGISHarvester(BasketBasicHarvester):
             self._save_gather_error("{}".format(e), harvest_job)
             return []
 
-    def _search_for_datasets(self, source_url):
+    def _search_for_datasets(self, source_url: str) -> list[dict[str, Any]]:
         services_dicts = []
         services_urls: list[str] = self._get_all_services_urls_list(source_url)
-        max_datasets = tk.asint(self.config.get("max_datasets", 1))
+        max_datasets = tk.asint(self.config.get("max_datasets", 0))
 
         for service in services_urls:
             log.info(f"{self.source_type}: gathering remote dataset: {service}")
@@ -104,7 +104,20 @@ class ArcGISHarvester(BasketBasicHarvester):
 
         return services_dicts
 
-    def _get_all_services_urls_list(self, source_url):
+    def _get_all_services_urls_list(self, source_url: str) -> list[str]:
+        """Fetches the list of service URLs
+
+        Args:
+            source_url (str): remote portal URL
+
+        Raises:
+            SearchError: raises an error if remote portal
+                         response not a JSON
+
+        Returns:
+            list[str]: a list of URL strings
+        """
+
         url = source_url + "/arcgis/rest/services?f=pjson"
         try:
             resp = self._make_request(url)
@@ -117,7 +130,9 @@ class ArcGISHarvester(BasketBasicHarvester):
         try:
             content = json.loads(resp.text)
         except ValueError as e:
-            raise SearchError(f"{self.source_type}: response from remote portal was not a JSON: {e}")
+            raise SearchError(
+                f"{self.source_type}: response from remote portal was not a JSON: {e}"
+            )
 
         try:
             services_urls = [
@@ -131,24 +146,25 @@ class ArcGISHarvester(BasketBasicHarvester):
 
         return services_urls
 
-    def _get_service_metadata(self, service_url, layers=False, res=False):
+    def _get_service_metadata(self, service_url: str, res: bool = False) -> dict:
+        """Fetches service metadata or service resource metadata
+        Uses two different methods depends on `res` parameter
+
+        Args:
+            service_url (str): remote service URL
+            res (bool, optional): Flag to change the fetch method. Defaults to False.
+
+        Returns:
+            dict: service metadata
         """
-        fetch service metadata or service resource metadata
-        depends on res True/False parameter
-        returns dict
-        """
-        param = "/info/itemInfo?f=pjson"
-        if res:
-            param = "/?f=pjson"
+        param = "/?f=pjson" if res else "/info/itemInfo?f=pjson"
 
         try:
             resp = self._make_request((service_url + param))
         except ContentFetchError:
-            log.debug(
-                f"{self.source_type}: Can't fetch the metadata. Access denied."
-            )
+            log.debug(f"{self.source_type}: Can't fetch the metadata. Access denied.")
             return []
-        
+
         try:
             content = json.loads(resp.text)
         except ValueError as e:
@@ -176,17 +192,23 @@ class ArcGISHarvester(BasketBasicHarvester):
         return True
 
     def _pre_map_stage(self, package_dict):
-        package_dict["id"] = package_dict["id"]
+        """Premap stage makes some basic changes to package data
+        to prepare data for CKAN
+
+        Args:
+            package_dict (dict): remote package data
+        """
         package_dict["notes"] = self._description_refine(
             package_dict.get("description", "")
         )
         package_dict["author"] = package_dict.get("owner", "")
+        package_dict["name"] = munge_name(package_dict["name"])
         package_dict["title"] = self._refine_name(package_dict.get("title", ""))
         package_dict["tags"] = self._fetch_tags(package_dict.get("tags", []))
         package_dict["resources"] = self._resources_fetch(package_dict)
         package_dict["url"] = package_dict.get("url", "")
+        package_dict["origin_type"] = package_dict.pop("type")
 
-        # fetching extras from remote portal
         package_dict["extras"] = []
 
         for field in ("accessInformation", "culture", "snippet"):
@@ -195,23 +217,26 @@ class ArcGISHarvester(BasketBasicHarvester):
                     {"key": field, "value": package_dict[field]}
                 )
 
-    def _refine_name(self, string):
-        """
-        ArcGIS API sometimes doesn't provide us with normal titles
-        makes small refine to titles
-        returns str
-        """
-        while "_" in string or "  " in string:
-            string = string.replace("_", " ").replace("  ", "")
+    def _refine_name(self, s: str) -> str:
+        """Refines package titles to match CKAN requirements
 
-        return string
+        Args:
+            s (str): name string
+
+        Returns:
+            str: refined name
+        """
+        while "_" in s or "  " in s:
+            s = s.replace("_", " ").replace("  ", "")
+
+        return s
 
     def _resources_fetch(self, pkg_data):
         resources = []
 
         # ArcGIS provides the same resources in different formats
         # We are gonna fetch the 3 most popular
-        for fmt in ("CSV", "GeoJSON", "KML"):
+        for fmt in ("csv", "geojson", "kml"):
             for res in pkg_data["resources"]:
                 resource = {}
                 resource_url = self._get_resource_url(pkg_data["id"], res["id"], fmt)
