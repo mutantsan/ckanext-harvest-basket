@@ -94,7 +94,10 @@ class DKANHarvester(BasketBasicHarvester):
         except ContentFetchError as e:
             raise SearchError(e)
 
-        package_names = json.loads(package_names)["result"]
+        try:
+            package_names = json.loads(package_names)["result"]
+        except ValueError as e:
+            raise SearchError(f"{self.source_type}: response from remote portal was not a JSON: {e}")
 
         max_datasets = int(self.config.get("max_datasets", 0))
         delay = int(self.config.get("delay", 0))
