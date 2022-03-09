@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
-
 from typing import Any, Optional
+
+from jsonschema import validate, ValidationError as SchemaValidationError
 
 import ckan.plugins.toolkit as tk
 
 from ckanext.harvest_basket.harvesters import (
     DKANHarvester, JunarHarvester, SocrataHarvester, ArcGISHarvester
 )
+from ckanext.harvest_basket.utils import get_json_schema
 
 
 @tk.side_effect_free
@@ -37,3 +39,22 @@ def check_source(ctx: dict[str, Any], data_dict: dict) -> dict[str, Any]:
         )
 
     return harvester_class().make_checkup(source_url, source_name, config)
+
+
+@tk.side_effect_free
+def update_config(ctx: dict[str, Any], data_dict: dict) -> dict[str, Any]:
+    tk.check_access("harvest_basket_update_config", ctx, data_dict)
+
+    config_content: str = tk.get_or_bust(data_dict, "config")
+
+    try:
+        config: dict = json.loads(config_content)
+    except ValueError as e:
+        return str(e)
+
+    schema = get_json_schema()
+
+    try:
+        validate(config, schema)
+    except SchemaValidationError as e:
+        return f"{e.message}"
