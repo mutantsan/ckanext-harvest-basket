@@ -37,7 +37,7 @@ class SocrataHarvester(BasketBasicHarvester):
         self._set_config(harvest_job.source.config)
 
         try:
-            pkg_dicts = self._search_for_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(self.source_url)
         except SearchError as e:
             log.error("Searching for datasets failed: {}".format(e))
             self._save_gather_error(
@@ -92,7 +92,7 @@ class SocrataHarvester(BasketBasicHarvester):
             self._save_gather_error(str(e), harvest_job)
             return []
 
-    def _search_for_datasets(self, remote_url: str):
+    def _search_datasets(self, remote_url: str):
         """Fetches the dataset metadata from remote_url
 
         Args:

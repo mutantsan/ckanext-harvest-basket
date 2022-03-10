@@ -36,7 +36,7 @@ class DKANHarvester(BasketBasicHarvester):
         log.info(f"{self.source_type}: Using config: {self.config}")
 
         try:
-            pkg_dicts = self._search_for_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(self.source_url)
         except SearchError as e:
             log.error(f"{self.source_type}: Searching for datasets failed: {e}")
             self._save_gather_error(
@@ -85,7 +85,7 @@ class DKANHarvester(BasketBasicHarvester):
 
         return object_ids
 
-    def _search_for_datasets(self, remote_url):
+    def _search_datasets(self, remote_url):
         self.url = urljoin(remote_url, self.PACKAGE_LIST)
         pkg_dicts = []
 

@@ -31,7 +31,7 @@ class ArcGISHarvester(BasketBasicHarvester):
         log.info(f"{self.source_type}: gather stage started: {self.source_url}")
 
         try:
-            pkg_dicts = self._search_for_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(self.source_url)
         except SearchError as e:
             log.error(f"{self.source_type}: searching for datasets failed: {e}")
             self._save_gather_error(
@@ -79,7 +79,7 @@ class ArcGISHarvester(BasketBasicHarvester):
             self._save_gather_error("{}".format(e), harvest_job)
             return []
 
-    def _search_for_datasets(self, source_url: str) -> list[dict[str, Any]]:
+    def _search_datasets(self, source_url: str) -> list[dict[str, Any]]:
         services_dicts = []
         services_urls: list[str] = self._get_all_services_urls_list(source_url)
         max_datasets = tk.asint(self.config.get("max_datasets", 0))

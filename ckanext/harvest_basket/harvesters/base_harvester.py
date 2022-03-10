@@ -117,7 +117,7 @@ class BasketBasicHarvester(HarvesterBase):
         self.source_type = source_name.title()
 
         try:
-            pkg_dicts = self._search_for_datasets(source_url)
+            pkg_dicts = self._search_datasets(source_url)
         except Exception as e:
             raise tk.ValidationError(
                 "Checkup failed. Check your source URL \n"

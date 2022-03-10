@@ -34,7 +34,7 @@ class JunarHarvester(BasketBasicHarvester):
         self._set_config(harvest_job.source.config)
 
         try:
-            pkg_dicts = self._search_for_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(self.source_url)
         except SearchError as e:
             log.error(f"{self.source_type}: searching for datasets failed: {e}")
             self._save_gather_error(
@@ -74,7 +74,7 @@ class JunarHarvester(BasketBasicHarvester):
             self._save_gather_error(str(e), harvest_job)
             return []
 
-    def _search_for_datasets(self, source_url):
+    def _search_datasets(self, source_url):
         pkg_dicts = []
         self.url = self._get_all_resources_data_url(source_url)
 
