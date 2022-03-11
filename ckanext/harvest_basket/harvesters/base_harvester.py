@@ -136,6 +136,8 @@ class BasketBasicHarvester(HarvesterBase):
             self.config = json.loads(config_str)
         else:
             self.config = {}
+        
+        return self.config
 
     def _fetch_tags(self, tag_list: list[str]) -> list[dict[str, str]]:
         """Converts socrata tags to CKAN
@@ -164,8 +166,9 @@ class BasketBasicHarvester(HarvesterBase):
             "session": model.Session,
             "user": self._get_user_name(),
         }
-        self._set_config(harvest_object.source.config)
-
+        
+        config = self._set_config(harvest_object.source.config)
+    
         if not harvest_object:
             log.error("No harvest object received")
             return False
@@ -175,13 +178,14 @@ class BasketBasicHarvester(HarvesterBase):
             return False
 
         package_dict = json.loads(harvest_object.content)
-        self.transmute_data(package_dict)
+
+        self.transmute_data(package_dict, config.get("tsm_schema"))
 
         if package_dict.get("type") == "harvest":
             log.info("Remote dataset is a harvest source, ignoring...")
             return True
 
-        default_extras = self.config.get("default_extras", {})
+        default_extras = config.get("default_extras", {})
 
         def get_extra(key, package_dict):
             for extra in package_dict.get("extras", []):
@@ -190,7 +194,7 @@ class BasketBasicHarvester(HarvesterBase):
 
         if default_extras:
             # you can disable extras override by defining override_extras to True in config
-            override_extras = self.config.get("override_extras", False)
+            override_extras = config.get("override_extras", False)
             if "extras" not in package_dict:
                 package_dict["extras"] = []
 
@@ -235,12 +239,10 @@ class BasketBasicHarvester(HarvesterBase):
         except Exception as e:
             self._save_object_error(str(e), harvest_object, "Import")
 
-    def transmute_data(self, data):
-        transmute_schema = self.config.get("tsm_schema")
-
-        if transmute_schema:
+    def transmute_data(self, data, schema):
+        if schema:
             tk.get_action("tsm_transmute")(
-                self.base_context, {"data": data, "schema": transmute_schema}
+                self.base_context, {"data": data, "schema": schema}
             )
 
     def _get_src_url(self, harvest_obj) -> str:

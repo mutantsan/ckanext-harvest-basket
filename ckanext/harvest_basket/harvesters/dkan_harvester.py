@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 class DKANHarvester(BasketBasicHarvester):
     PACKAGE_LIST: str = "/api/3/action/package_list"
     PACKAGE_SHOW: str = "/api/3/action/package_show"
+    SRC_ID = "DKAN"
 
     def info(self):
         return {
@@ -28,26 +29,25 @@ class DKANHarvester(BasketBasicHarvester):
         }
 
     def gather_stage(self, harvest_job):
-        self.source_type = "DKAN"
-        self.source_url = harvest_job.source.url.strip("/")
-        log.info(f"{self.source_type}: Starting gather_stage {self.source_url}")
+        source_url = harvest_job.source.url.strip("/")
+        log.info(f"{self.SRC_ID}: Starting gather_stage {source_url}")
 
         self._set_config(harvest_job.source.config)
-        log.info(f"{self.source_type}: Using config: {self.config}")
+        log.info(f"{self.SRC_ID}: Using config: {self.config}")
 
         try:
-            pkg_dicts = self._search_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(source_url)
         except SearchError as e:
-            log.error(f"{self.source_type}: Searching for datasets failed: {e}")
+            log.error(f"{self.SRC_ID}: Searching for datasets failed: {e}")
             self._save_gather_error(
-                f"{self.source_type}: Unable to search remote portla for datasets: {self.source_url}",
+                f"{self.SRC_ID}: Unable to search remote portla for datasets: {source_url}",
                 harvest_job,
             )
             return []
 
         if not pkg_dicts:
             self._save_gather_error(
-                f"{self.source_type}: No datasets found at remote portal: {self.source_url}",
+                f"{self.SRC_ID}: No datasets found at remote portal: {source_url}",
                 harvest_job,
             )
             return []
@@ -59,7 +59,7 @@ class DKANHarvester(BasketBasicHarvester):
 
             if pkg_dict["id"] in package_ids:
                 log.debug(
-                    f"{self.source_type}: Discarding duplicate dataset {pkg_dict['id']}. "
+                    f"{self.SRC_ID}: Discarding duplicate dataset {pkg_dict['id']}. "
                     "Probably, due to datasets being changed in process of harvesting"
                 )
                 continue
@@ -67,7 +67,7 @@ class DKANHarvester(BasketBasicHarvester):
             package_ids.add(pkg_dict["id"])
 
             log.info(
-                f"{self.source_type}: Creating harvest_object for {pkg_dict.get('name', '')} {pkg_dict['id']}"
+                f"{self.SRC_ID}: Creating harvest_object for {pkg_dict.get('name', '')} {pkg_dict['id']}"
             )
 
             try:
@@ -78,7 +78,7 @@ class DKANHarvester(BasketBasicHarvester):
                 object_ids.append(obj.id)
             except TypeError as e:
                 log.debug(
-                    f"{self.source_type}: The error occured during the gather stage: {str(e)}"
+                    f"{self.SRC_ID}: The error occured during the gather stage: {str(e)}"
                 )
                 self._save_gather_error(str(e), harvest_job)
                 continue
@@ -97,14 +97,14 @@ class DKANHarvester(BasketBasicHarvester):
         try:
             package_names = json.loads(package_names)["result"]
         except ValueError as e:
-            raise SearchError(f"{self.source_type}: response from remote portal was not a JSON: {e}")
+            raise SearchError(f"{self.SRC_ID}: response from remote portal was not a JSON: {e}")
 
         max_datasets = int(self.config.get("max_datasets", 0))
         delay = int(self.config.get("delay", 0))
 
         for package_name in set(package_names):
             url = f"{remote_url}{self.PACKAGE_SHOW}?{parse.urlencode({'id': package_name})}"
-            log.debug(f"{self.source_type}: Searching for dataset: {url}")
+            log.debug(f"{self.SRC_ID}: Searching for dataset: {url}")
 
             resp = self._make_request(url)
 
@@ -115,7 +115,7 @@ class DKANHarvester(BasketBasicHarvester):
                 package_dict_page = json.loads(resp.text)["result"]
             except ValueError as e:
                 log.error(
-                    f"{self.source_type}: Response JSON doesn't contain result: {e}"
+                    f"{self.SRC_ID}: Response JSON doesn't contain result: {e}"
                 )
                 continue
 
@@ -134,7 +134,7 @@ class DKANHarvester(BasketBasicHarvester):
             # you can use delay parameter in config
             if delay > 0:
                 sleep(delay)
-                log.info(f"{self.source_type}: Sleeping for {delay} second(s)")
+                log.info(f"{self.SRC_ID}: Sleeping for {delay} second(s)")
 
         return pkg_dicts
 
@@ -150,12 +150,14 @@ class DKANHarvester(BasketBasicHarvester):
         )
 
     def fetch_stage(self, harvest_object):
+        self.source_url = harvest_object.source.url.strip("/")
+        self._set_config(harvest_object.source.config)
         package_dict = json.loads(harvest_object.content)
-        self._pre_map_stage(package_dict)
+        self._pre_map_stage(package_dict, self.source_url)
         harvest_object.content = json.dumps(package_dict)
         return True
 
-    def _pre_map_stage(self, content: dict):
+    def _pre_map_stage(self, content: dict, source_url: str):
         content["resources"] = self._fetch_resources(
             content.get("resources"), content.get("id")
         )
