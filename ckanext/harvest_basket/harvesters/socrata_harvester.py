@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 class SocrataHarvester(BasketBasicHarvester):
     ALL_PUBLIC_ASSETS: str = "/api/views/"
     SOLR_MAX_STRING_SIZE: int = 32000
+    SRC_ID = "Socrata"
 
     def info(self):
         return {
@@ -29,20 +30,19 @@ class SocrataHarvester(BasketBasicHarvester):
         }
 
     def gather_stage(self, harvest_job):
-        self.source_type = "Socrata"
-        self.source_url = harvest_job.source.url.strip("/")
+        source_url = self._get_src_url(harvest_job)
 
-        log.info(f"Socrata gather stage in progress: {self.source_url}")
+        log.info(f"{self.SRC_ID}: gather stage in progress: {source_url}")
 
         self._set_config(harvest_job.source.config)
 
         try:
-            pkg_dicts = self._search_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(source_url)
         except SearchError as e:
             log.error("Searching for datasets failed: {}".format(e))
             self._save_gather_error(
                 "Unable to search the remote Socrata portal for datasets: {}".format(
-                    self.source_url
+                    source_url
                 ),
                 harvest_job,
             )
@@ -52,7 +52,7 @@ class SocrataHarvester(BasketBasicHarvester):
             log.error("Searching returns empty result.")
             self._save_gather_error(
                 "No datasets found at Socrata remote portal: {}".format(
-                    self.source_url
+                    source_url
                 ),
                 harvest_job,
             )
@@ -340,12 +340,14 @@ class SocrataHarvester(BasketBasicHarvester):
             return
 
     def fetch_stage(self, harvest_object):
+        self._set_config(harvest_object.source.config)
+        self.source_url = self._get_src_url(harvest_object)
         package_dict = json.loads(harvest_object.content)
-        self._pre_map_stage(package_dict)
+        self._pre_map_stage(package_dict, self.source_url)
         harvest_object.content = json.dumps(package_dict)
         return True
 
-    def _pre_map_stage(self, content: dict):
+    def _pre_map_stage(self, content: dict, source_url: str):
         """Premap stage maps the remote portal meta to CKAN
         if the original field has the same name, the value could be changed
         otherwise, the field stay the same

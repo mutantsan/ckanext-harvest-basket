@@ -164,6 +164,7 @@ class BasketBasicHarvester(HarvesterBase):
             "session": model.Session,
             "user": self._get_user_name(),
         }
+        self._set_config(harvest_object.source.config)
 
         if not harvest_object:
             log.error("No harvest object received")
