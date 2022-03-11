@@ -147,33 +147,6 @@ class SocrataHarvester(BasketBasicHarvester):
             return pkg_dicts[:max_datasets]
         return pkg_dicts
 
-    def _get_resource_url(self, pkg_data: dict):
-        """Fetches the resource URL
-        Only tabular data are presented in CSV format
-
-        Args:
-                pkg_data (dict): remote package data
-
-        Returns:
-                str: remote resource URL
-        """
-        if pkg_data.get("viewType", "") == "tabular":
-            api_offset = f"/api/views/{pkg_data['id']}/rows.csv?accessType=DOWNLOAD"
-            return parse.urljoin(self.source_url, api_offset)
-
-    def _get_attachment_url(self, pkg_id, attachment, blob=False):
-        # there are two different keys which can be presented in filepath url
-        if not blob:
-            api_offset = (
-                f"/api/views/{pkg_id}/files/{attachment['assetId']}"
-                f"?filename={attachment['filename']}"
-            )
-            return parse.urljoin(self.source_url, api_offset)
-
-        return parse.urljoin(
-            self.source_url, f"/api/assets/{attachment['blobId']}?download=true"
-        )
-
     def _resources_fetch(self, pkg_data):
         resources = []
 
@@ -229,20 +202,32 @@ class SocrataHarvester(BasketBasicHarvester):
 
         return resources
 
-    def _get_geojson_data_url(self, pkg_id, res=False):
-        """Fetches URL to geojson file for a particular package
+    def _get_resource_url(self, pkg_data: dict):
+        """Fetches the resource URL
+        Only tabular data are presented in CSV format
 
         Args:
-                        pkg_id (str): remote package ID
-                        res (bool, optional): Flag to use resource endpoint. Defaults to False.
+                pkg_data (dict): remote package data
 
         Returns:
-                        str: URL to geojson file
+                str: remote resource URL
         """
-        api_offset = f"/api/geospatial/{pkg_id}?method=export&format=GeoJSON"
-        if res:
-            api_offset = f"/resource/{pkg_id}.geojson"
-        return parse.urljoin(self.source_url, api_offset)
+        if pkg_data.get("viewType", "") == "tabular":
+            api_offset = f"/api/views/{pkg_data['id']}/rows.csv"
+            return parse.urljoin(self.source_url, api_offset)
+
+    def _get_attachment_url(self, pkg_id, attachment, blob=False):
+        # there are two different keys which can be presented in filepath url
+        if not blob:
+            api_offset = (
+                f"/api/views/{pkg_id}/files/{attachment['assetId']}"
+                f"?filename={attachment['filename']}"
+            )
+            return parse.urljoin(self.source_url, api_offset)
+
+        return parse.urljoin(
+            self.source_url, f"/api/assets/{attachment['blobId']}?download=true"
+        )
 
     def _get_pkg_source_url(self, pkg_id):
         """Fetches the package URL on remote portal
@@ -338,6 +323,21 @@ class SocrataHarvester(BasketBasicHarvester):
                 return geojson.dumps(geo)
         except TypeError as e:
             return
+
+    def _get_geojson_data_url(self, pkg_id, res=False):
+        """Fetches URL to geojson file for a particular package
+
+        Args:
+            pkg_id (str): remote package ID
+            res (bool, optional): Flag to use resource endpoint. Defaults to False.
+
+        Returns:
+            str: URL to geojson file
+        """
+        api_offset = f"/api/geospatial/{pkg_id}?method=export&format=GeoJSON"
+        if res:
+            api_offset = f"/resource/{pkg_id}.geojson"
+        return parse.urljoin(self.source_url, api_offset)
 
     def fetch_stage(self, harvest_object):
         self._set_config(harvest_object.source.config)
