@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 
 
 class ArcGISHarvester(BasketBasicHarvester):
+    SRC_ID = "ArcGIS"
+
     def info(self):
         return {
             "name": "arcgis",
@@ -24,25 +26,24 @@ class ArcGISHarvester(BasketBasicHarvester):
         }
 
     def gather_stage(self, harvest_job):
-        self.source_type = "ArcGIS"
-        self.source_url = harvest_job.source.url.strip("/")
+        source_url = self._get_src_url(harvest_job)
 
         self._set_config(harvest_job.source.config)
-        log.info(f"{self.source_type}: gather stage started: {self.source_url}")
+        log.info(f"{self.SRC_ID}: gather stage started: {source_url}")
 
         try:
-            pkg_dicts = self._search_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(source_url)
         except SearchError as e:
-            log.error(f"{self.source_type}: searching for datasets failed: {e}")
+            log.error(f"{self.SRC_ID}: searching for datasets failed: {e}")
             self._save_gather_error(
-                f"{self.source_type}: unable to search the remote ArcGIS portal for datasets: {harvest_job}"
+                f"{self.SRC_ID}: unable to search the remote ArcGIS portal for datasets: {harvest_job}"
             )
             return []
 
         if not pkg_dicts:
-            log.error(f"{self.source_type}: searching returns empty result.")
+            log.error(f"{self.SRC_ID}: searching returns empty result.")
             self._save_gather_error(
-                f"{self.source_type}: no datasets found at remote portal: {self.source_url}",
+                f"{self.SRC_ID}: no datasets found at remote portal: {source_url}",
                 harvest_job,
             )
             return []
@@ -55,7 +56,7 @@ class ArcGISHarvester(BasketBasicHarvester):
                 pkg_id: str = pkg_dict["id"]
                 if pkg_id in package_ids:
                     log.debug(
-                        f"{self.source_type}: discarding duplicate dataset {pkg_id}. "
+                        f"{self.SRC_ID}: discarding duplicate dataset {pkg_id}. "
                         "Probably, due to datasets being changed in process of harvesting"
                     )
                     continue
@@ -63,7 +64,7 @@ class ArcGISHarvester(BasketBasicHarvester):
                 package_ids.add(pkg_id)
 
                 log.info(
-                    f"{self.source_type}: creating harvest_object for package: {pkg_id}"
+                    f"{self.SRC_ID}: creating harvest_object for package: {pkg_id}"
                 )
                 obj = HarvestObject(
                     guid=pkg_id, job=harvest_job, content=json.dumps(pkg_dict)
@@ -74,7 +75,7 @@ class ArcGISHarvester(BasketBasicHarvester):
             return object_ids
         except Exception as e:
             log.debug(
-                f"{self.source_type}: the error occured during the gather stage: {e}"
+                f"{self.SRC_ID}: the error occured during the gather stage: {e}"
             )
             self._save_gather_error("{}".format(e), harvest_job)
             return []
@@ -85,16 +86,16 @@ class ArcGISHarvester(BasketBasicHarvester):
         max_datasets = tk.asint(self.config.get("max_datasets", 0))
 
         for service in services_urls:
-            log.info(f"{self.source_type}: gathering remote dataset: {service}")
+            log.info(f"{self.SRC_ID}: gathering remote dataset: {service}")
             log.info(
-                f"{self.source_type}: progress "
+                f"{self.SRC_ID}: progress "
                 f"{services_urls.index(service) + 1}/{len(services_urls) + 1}"
             )
             service_meta = self._get_service_metadata(service)
             service_meta["resources"] = self._get_service_metadata(service, res=True)
 
             if not service_meta.get("id"):
-                log.error(f"{self.source_type}: the dataset has no id. Skipping...")
+                log.error(f"{self.SRC_ID}: the dataset has no id. Skipping...")
                 continue
 
             services_dicts.append(service_meta)
@@ -123,7 +124,7 @@ class ArcGISHarvester(BasketBasicHarvester):
             resp = self._make_request(url)
         except ContentFetchError as e:
             log.debug(
-                f"{self.source_type}: Could not fetch remote portal services list: {e}"
+                f"{self.SRC_ID}: Could not fetch remote portal services list: {e}"
             )
             return []
 
@@ -131,7 +132,7 @@ class ArcGISHarvester(BasketBasicHarvester):
             content = json.loads(resp.text)
         except ValueError as e:
             raise SearchError(
-                f"{self.source_type}: response from remote portal was not a JSON: {e}"
+                f"{self.SRC_ID}: response from remote portal was not a JSON: {e}"
             )
 
         try:
@@ -140,7 +141,7 @@ class ArcGISHarvester(BasketBasicHarvester):
             ]
         except KeyError as e:
             log.debug(
-                f"{self.source_type}: there is no available services in remote portal"
+                f"{self.SRC_ID}: there is no available services in remote portal"
             )
             return []
 
@@ -162,14 +163,14 @@ class ArcGISHarvester(BasketBasicHarvester):
         try:
             resp = self._make_request((service_url + param))
         except ContentFetchError:
-            log.debug(f"{self.source_type}: Can't fetch the metadata. Access denied.")
+            log.debug(f"{self.SRC_ID}: Can't fetch the metadata. Access denied.")
             return []
 
         try:
             content = json.loads(resp.text)
         except ValueError as e:
             log.debug(
-                f"{self.source_type}: Can't fetch the metadata. JSON object is corrupted"
+                f"{self.SRC_ID}: Can't fetch the metadata. JSON object is corrupted"
             )
 
         if res:
@@ -186,12 +187,13 @@ class ArcGISHarvester(BasketBasicHarvester):
         return f"{offset}{pkg_id}_{res_id}.{fmt}"
 
     def fetch_stage(self, harvest_object):
+        self.source_url = harvest_object.source.url.strip("/")
         package_dict = json.loads(harvest_object.content)
-        self._pre_map_stage(package_dict)
+        self._pre_map_stage(package_dict, self.source_url)
         harvest_object.content = json.dumps(package_dict)
         return True
 
-    def _pre_map_stage(self, package_dict):
+    def _pre_map_stage(self, package_dict, source_url):
         """Premap stage makes some basic changes to package data
         to prepare data for CKAN
 
