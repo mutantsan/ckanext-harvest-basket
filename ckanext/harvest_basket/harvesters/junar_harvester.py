@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 
 
 class JunarHarvester(BasketBasicHarvester):
+    SRC_ID = "Junar"
+
     def info(self):
         return {
             "name": "junar",
@@ -27,26 +29,26 @@ class JunarHarvester(BasketBasicHarvester):
         }
 
     def gather_stage(self, harvest_job):
-        self.source_type = "Junar"
-        self.source_url = harvest_job.source.url.strip("/")
-        log.info(f"{self.source_type}: gather stage in progress: {self.source_url}")
+        source_url = self._get_src_url(harvest_job)
+
+        log.info(f"{self.SRC_ID}: gather stage in progress: {source_url}")
 
         self._set_config(harvest_job.source.config)
 
         try:
-            pkg_dicts = self._search_datasets(self.source_url)
+            pkg_dicts = self._search_datasets(source_url)
         except SearchError as e:
-            log.error(f"{self.source_type}: searching for datasets failed: {e}")
+            log.error(f"{self.SRC_ID}: searching for datasets failed: {e}")
             self._save_gather_error(
-                f"{self.source_type}: unable to search the remote portal for datasets: {self.source_url}",
+                f"{self.SRC_ID}: unable to search the remote portal for datasets: {source_url}",
                 harvest_job,
             )
             return []
 
         if not pkg_dicts:
-            log.error(f"{self.source_type}: searching returns empty result.")
+            log.error(f"{self.SRC_ID}: searching returns empty result.")
             self._save_gather_error(
-                f"{self.source_type}: no datasets found at remote portal: {self.source_url}",
+                f"{self.SRC_ID}: no datasets found at remote portal: {source_url}",
                 harvest_job,
             )
             return []
@@ -56,7 +58,7 @@ class JunarHarvester(BasketBasicHarvester):
 
             for pkg_dict in pkg_dicts:
                 log.info(
-                    f"{self.source_type}: Creating HARVEST object "
+                    f"{self.SRC_ID}: Creating HARVEST object "
                     f"for {pkg_dict['title']} | guid: {pkg_dict['guid']}"
                 )
 
@@ -69,19 +71,27 @@ class JunarHarvester(BasketBasicHarvester):
             return object_ids
         except Exception as e:
             log.debug(
-                f"{self.source_type}: The error occured during the gather stage: {e}"
+                f"{self.SRC_ID}: The error occured during the gather stage: {e}"
             )
             self._save_gather_error(str(e), harvest_job)
             return []
 
     def _search_datasets(self, source_url):
+        auth_key = self.config.get("auth_key")
+
+        if not auth_key:
+            raise SearchError(
+                f"{self.SRC_ID}: missing `auth_key`. "
+                "Please, provide it via the config"
+            )
+
         pkg_dicts = []
-        self.url = self._get_all_resources_data_url(source_url)
+        self.url = urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
 
         max_datasets = int(self.config.get("max_datasets", 0))
 
         while True:
-            log.info(f"{self.source_type}: Gathering remote dataset: {self.url}")
+            log.info(f"{self.SRC_ID}: Gathering remote dataset: {self.url}")
 
             resp = self._make_request(self.url)
 
@@ -90,16 +100,18 @@ class JunarHarvester(BasketBasicHarvester):
                     pkgs_data = resp.json()
                 except ValueError as e:
                     raise SearchError(
-                        f"{self.source_type}: invalid response type, not a JSON"
+                        f"{self.SRC_ID}: invalid response type, not a JSON"
                     )
             else:
                 if "api/v2/resources" in self.url:
                     break
                 log.debug(
-                    f"{self.source_type}: Remote portal doesn't provide resources API. "
+                    f"{self.SRC_ID}: Remote portal doesn't provide resources API. "
                     "Changing API endpoint"
                 )
-                self.url = self._get_all_datasets_json_url(source_url)
+                self.url = urljoin(
+                    source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50"
+                )
                 continue
 
             package_ids = set()
@@ -112,7 +124,7 @@ class JunarHarvester(BasketBasicHarvester):
                 # They put the same resource in defferent "types"
                 if pkg["guid"] in package_ids:
                     log.debug(
-                        f"{self.source_type}: Discarding duplicate dataset {pkg['guid']}."
+                        f"{self.SRC_ID}: Discarding duplicate dataset {pkg['guid']}."
                     )
                     continue
                 package_ids.add(pkg["guid"])
@@ -130,36 +142,15 @@ class JunarHarvester(BasketBasicHarvester):
             return pkg_dicts[:max_datasets]
         return pkg_dicts
 
-    def _get_all_datasets_json_url(self, source_url):
-        auth_key = self._get_auth_key()
-
-        return urljoin(
-            source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50"
-        )
-
-    def _get_all_resources_data_url(self, source_url):
-        auth_key = self._get_auth_key()
-
-        return urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
-
-    def _get_auth_key(self):
-        auth_key = self.config.get("auth_key")
-
-        if not auth_key:
-            self.url = self.source_url
-            raise SearchError(
-                f"{self.source_type}: missing `auth_key`. "
-                "Please, provide it via the config"
-            )
-        return auth_key
-
     def fetch_stage(self, harvest_object):
+        self._set_config(harvest_object.source.config)
+        source_url = self._get_src_url(harvest_object)
         package_dict = json.loads(harvest_object.content)
-        self._pre_map_stage(package_dict)
+        self._pre_map_stage(package_dict, source_url)
         harvest_object.content = json.dumps(package_dict)
         return True
 
-    def _pre_map_stage(self, package_dict: dict):
+    def _pre_map_stage(self, package_dict: dict, source_url: str):
         package_dict["id"] = package_dict["guid"]
         package_dict["title"] = package_dict["title"]
         package_dict["notes"] = package_dict.get("description", "")
@@ -174,7 +165,7 @@ class JunarHarvester(BasketBasicHarvester):
         res_type = self._define_resource_type(package_dict["link"])
 
         package_dict["resources"] = self._fetch_resources(
-            package_dict, res_type, self.source_url
+            package_dict, res_type, source_url
         )
 
         extra = (
@@ -226,7 +217,7 @@ class JunarHarvester(BasketBasicHarvester):
                     fmt = resp.headers["Content-Disposition"].strip('"').split(".")[-1]
                 except KeyError:
                     fmt = resp.url.split(".")[-1]
-                    if "application/json" in reresps.headers.get("content-type", ""):
+                    if "application/json" in resp.headers.get("content-type", ""):
                         fmt = "JSON"
 
             resource["format"] = fmt.upper()
@@ -236,7 +227,7 @@ class JunarHarvester(BasketBasicHarvester):
         return resources
 
     def _get_resource_url(self, pkg_data, res_type, source_url):
-        auth_key = self._get_auth_key()
+        auth_key = self.config.get("auth_key")
 
         base_url = re.findall(r"((http|https):\/\/(\w+\.*)+)", pkg_data["link"])[0][0]
         d = {

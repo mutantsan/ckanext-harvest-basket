@@ -60,34 +60,34 @@ class BasketBasicHarvester(HarvesterBase):
         try:
             resp = requests.get(url, stream=stream)
         except requests.exceptions.HTTPError as e:
-            err_msg = f"{self.source_type}: The HTTP error happend during request {e}"
+            err_msg = f"{self.SRC_ID}: The HTTP error happend during request {e}"
             log.error(err_msg)
         except requests.exceptions.ConnectTimeout as e:
-            err_msg = f"{self.source_type}: Connection timeout: {e}"
+            err_msg = f"{self.SRC_ID}: Connection timeout: {e}"
             log.error(err_msg)
         except requests.exceptions.ConnectionError as e:
             err_msg = (
-                f"{self.source_type}: The Connection error happend during request {e}"
+                f"{self.SRC_ID}: The Connection error happend during request {e}"
             )
             log.error(err_msg)
         except requests.exceptions.RequestException as e:
             err_msg = (
-                f"{self.source_type}: The Request error happend during request {e}"
+                f"{self.SRC_ID}: The Request error happend during request {e}"
             )
             log.error(err_msg)
 
         if resp is None:
-            raise tk.ValidationError({self.source_type: err_msg})
+            raise tk.ValidationError({self.SRC_ID: err_msg})
 
         if resp.status_code == 200:
             return resp
 
         err_msg = (
-            f"{self.source_type}: Bad response from remote portal: "
+            f"{self.SRC_ID}: Bad response from remote portal: "
             f"{resp.status_code}, {resp.json().get('description') or resp.reason}"
         )
         log.error(err_msg)
-        raise tk.ValidationError({self.source_type: err_msg})
+        raise tk.ValidationError({self.SRC_ID: err_msg})
 
     def make_checkup(self, source_url: str, source_name: str, config: dict):
         """Makes a test fetch of 1 dataset from the remote source
@@ -128,7 +128,7 @@ class BasketBasicHarvester(HarvesterBase):
         if not pkg_dicts:
             return f"No datasets found on remote portal: {source_url}"
 
-        self._pre_map_stage(pkg_dicts[0])
+        self._pre_map_stage(pkg_dicts[0], source_url)
         return pkg_dicts[0]
 
     def _set_config(self, config_str):
@@ -241,3 +241,6 @@ class BasketBasicHarvester(HarvesterBase):
             tk.get_action("tsm_transmute")(
                 self.base_context, {"data": data, "schema": transmute_schema}
             )
+
+    def _get_src_url(self, harvest_obj) -> str:
+        return harvest_obj.source.url.strip("/")
