@@ -54,7 +54,7 @@ def get_json_schema():
                                     "items": [
                                     {
                                         "type": "string",
-                                        "enum": ["tsm_get_nested"]
+                                        "enum": ["tsm_get_nested", "tsm_allow_res_formats"]
                                     }
                                     ],
                                     "additionalItems": { "$ref": "#/$defs/anytype" }

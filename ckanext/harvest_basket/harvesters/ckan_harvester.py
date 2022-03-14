@@ -15,9 +15,12 @@ log = logging.getLogger(__name__)
 
 
 class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
+    SRC_ID = "CKAN"
+
     def import_stage(self, harvest_object):
         package_dict = json.loads(harvest_object.content)
-        self.transmute_data(package_dict)
+        self._set_config(harvest_object.source.config)
+        self.transmute_data(package_dict, self.config.get("tsm_schema"))
         harvest_object.content = json.dumps(package_dict)
 
         super().import_stage(harvest_object)
@@ -32,24 +35,22 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
         try:
             package_dict = json.loads(resp.text)["result"]["results"]
         except (ValueError, KeyError) as e:
-            err_msg: str = f"CKAN: Response JSON doesn't contain result: {e}"
+            err_msg: str = f"{self.SRC_ID}: response JSON doesn't contain result: {e}"
             log.error(err_msg)
             raise SearchError(err_msg)
 
         return package_dict
     
-    def _pre_map_stage(self, data_dict):
+    def _pre_map_stage(self, data_dict, source_url):
         return data_dict
 
-    def transmute_data(self, data):
-        transmute_schema = self.config.get("tsm_schema")
-
-        if transmute_schema:
+    def transmute_data(self, data, schema):
+        if schema:
             tk.get_action("tsm_transmute")(
                 {
                     "model": model,
                     "session": model.Session,
                     "user": self._get_user_name()
                 },
-                {"data": data, "schema": transmute_schema}
+                {"data": data, "schema": schema}
             )
