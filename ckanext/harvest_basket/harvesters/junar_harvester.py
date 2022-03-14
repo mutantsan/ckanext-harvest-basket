@@ -1,9 +1,8 @@
 import logging
-import re
 import json
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup as bs4
+from ckan.lib.munge import munge_name
 
 from ckanext.harvest.model import HarvestObject
 from ckanext.harvest.harvesters.ckanharvester import SearchError
@@ -86,14 +85,15 @@ class JunarHarvester(BasketBasicHarvester):
             )
 
         pkg_dicts = []
-        self.url = urljoin(source_url, f"/api/v2/resources/?auth_key={auth_key}&limit=50")
+        self.url = urljoin(source_url, f"/api/v2/datastreams/?auth_key={auth_key}&limit=100")
+        offset = 0
 
         max_datasets = int(self.config.get("max_datasets", 0))
 
         while True:
-            log.info(f"{self.SRC_ID}: Gathering remote dataset: {self.url}")
+            log.info(f"{self.SRC_ID}: gathering remote dataset: {self.url}")
 
-            resp = self._make_request(self.url)
+            resp = self._make_request(f"{self.url}&offset={offset}")
 
             if resp:
                 try:
@@ -103,43 +103,29 @@ class JunarHarvester(BasketBasicHarvester):
                         f"{self.SRC_ID}: invalid response type, not a JSON"
                     )
             else:
-                if "api/v2/resources" in self.url:
-                    break
-                log.debug(
-                    f"{self.SRC_ID}: Remote portal doesn't provide resources API. "
-                    "Changing API endpoint"
+                raise SearchError(
+                    f"{self.SRC_ID}: error accessing remote portal"
                 )
-                self.url = urljoin(
-                    source_url, f"/api/v2/datasets.json/?auth_key={auth_key}&limit=50"
-                )
-                continue
 
             package_ids = set()
-            for pkg in pkgs_data["results"]:
-                if "/dashboards/" in pkg["link"]:
-                    # we can skip the dashboards, cause it's just a "collection"
-                    # of resources that we will get anyway
-                    break
-                # Junar API returns duplicated IDs
-                # They put the same resource in defferent "types"
+
+            package_list = pkgs_data.get("results") if isinstance(pkgs_data, dict) else pkgs_data
+            if not package_list:
+                break
+            
+            for pkg in package_list:
                 if pkg["guid"] in package_ids:
                     log.debug(
-                        f"{self.SRC_ID}: Discarding duplicate dataset {pkg['guid']}."
+                        f"{self.SRC_ID}: discarding duplicate dataset {pkg['guid']}."
                     )
                     continue
                 package_ids.add(pkg["guid"])
-
                 pkg_dicts.append(pkg)
 
-            url = pkgs_data.get("next")
-            if not url:
-                break
-
+            offset += 100
             if max_datasets and len(pkg_dicts) > max_datasets:
                 break
 
-        if max_datasets:
-            return pkg_dicts[:max_datasets]
         return pkg_dicts
 
     def fetch_stage(self, harvest_object):
@@ -152,7 +138,6 @@ class JunarHarvester(BasketBasicHarvester):
 
     def _pre_map_stage(self, package_dict: dict, source_url: str):
         package_dict["id"] = package_dict["guid"]
-        package_dict["title"] = package_dict["title"]
         package_dict["notes"] = package_dict.get("description", "")
         package_dict["url"] = package_dict.get("link", "")
         package_dict["author"] = package_dict.get("user", "")
@@ -162,10 +147,9 @@ class JunarHarvester(BasketBasicHarvester):
         )
         package_dict["type"] = "dataset"
 
-        res_type = self._define_resource_type(package_dict["link"])
-
+        package_dict["name"] = munge_name(package_dict["title"])
         package_dict["resources"] = self._fetch_resources(
-            package_dict, res_type, source_url
+            package_dict, source_url
         )
 
         extra = (
@@ -184,19 +168,11 @@ class JunarHarvester(BasketBasicHarvester):
                     {"key": field[1], "value": package_dict[field[0]]}
                 )
 
-    def _define_resource_type(self, resource_url):
-        res_types = ("dataviews", "datasets", "visualizations")
-        for res_type in res_types:
-            if res_type in resource_url:
-                return res_type
-
-    def _fetch_resources(self, pkg_data, res_type, source_url):
-        resources = []
-
+    def _fetch_resources(self, pkg_data, source_url):
         resource = {}
 
         resource["package_id"] = pkg_data["guid"]
-        resource["url"] = self._get_resource_url(pkg_data, res_type, source_url)
+        resource["url"] = self._get_resource_url(pkg_data, source_url)
         resource["format"] = "CSV"
         resource["created"] = self._datetime_refine(pkg_data.get("created_at", ""))
         resource["last_modified"] = self._datetime_refine(
@@ -204,58 +180,13 @@ class JunarHarvester(BasketBasicHarvester):
         )
         resource["name"] = pkg_data["title"]
 
-        # if res_type is datasets, we can"t predict the format
-        # otherwise we are fetching only csv
-        if res_type == "datasets":
-            fmt = "DATA"
+        return [resource]
 
-            resp = self._make_request(resource["url"])
-            if not resp:
-                pass
-            else:
-                try:
-                    fmt = resp.headers["Content-Disposition"].strip('"').split(".")[-1]
-                except KeyError:
-                    fmt = resp.url.split(".")[-1]
-                    if "application/json" in resp.headers.get("content-type", ""):
-                        fmt = "JSON"
-
-            resource["format"] = fmt.upper()
-
-        resources.append(resource)
-
-        return resources
-
-    def _get_resource_url(self, pkg_data, res_type, source_url):
+    def _get_resource_url(self, pkg_data, source_url):
         auth_key = self.config.get("auth_key")
 
-        base_url = re.findall(r"((http|https):\/\/(\w+\.*)+)", pkg_data["link"])[0][0]
-        d = {
-            "dataviews": self._get_dataview_resource_url,
-            "datasets": self._get_dataset_resource_url,
-            "visualizations": self._get_visualisation_resource_url,
-        }
+        dataview_url: str = self._get_dataview_resource_url(pkg_data, source_url)
+        return f"{dataview_url}/?auth_key={auth_key}"
 
-        return d[res_type](pkg_data, source_url, base_url) + "/?auth_key={}".format(
-            auth_key
-        )
-
-    def _get_dataview_resource_url(self, pkg_data, source_url=None, base_url=None):
-        return source_url + "/api/v2/datastreams/{}/data.csv".format(pkg_data["guid"])
-
-    def _get_dataset_resource_url(self, pkg_data, source_url=None, base_url=None):
-        url = pkg_data["link"].strip("/") + ".download"
-        # 252295/ -> 252295-
-        sub_str = re.search(r"(?P<digits>\d{1,10})(?P<slash>[\/])", url).group(0)
-        return url.replace(sub_str, (sub_str.strip("/") + "-"))
-
-    def _get_visualisation_resource_url(self, pkg_data, source_url=None, base_url=None):
-        res = self._make_request(pkg_data["link"])
-
-        if res:
-            html = bs4(res.text)
-            download_url = html.find(id="id_exportToCSVButton")
-            if download_url:
-                return base_url + download_url["href"]
-
-        return ""
+    def _get_dataview_resource_url(self, pkg_data, source_url):
+        return urljoin(source_url, f"/api/v2/datastreams/{pkg_data['guid']}/data.csv")
