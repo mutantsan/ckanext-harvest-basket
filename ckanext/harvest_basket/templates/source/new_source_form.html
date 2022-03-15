@@ -1,7 +1,24 @@
 {% ckan_extends %}
 
 {% block extra_config %}
-    {{ super() }}
+    {% set config_placeholder = '{
+        "tsm_schema":{
+            "root":"Dataset",
+            "types":{
+                "Dataset":{
+                    "fields":{
+                        "data_lang": {
+                            "value": "English"
+                        }
+                    }
+                }
+            }
+        }
+    }'
+    %}
+
+    {{ form.textarea('config', id='field-config', label=_('Configuration'), value=data.config, error=errors.config, placeholder=config_placeholder) }}
+
     <div class="harvest-checkup-preview" data-module="harvest-change-source-type harvest-config">
         <div class="form-group control-full">
             <label class="control-label" for="field-checkup-preview">

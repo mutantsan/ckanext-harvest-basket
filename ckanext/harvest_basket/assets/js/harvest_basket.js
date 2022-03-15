@@ -109,7 +109,10 @@ ckan.module("harvest-config", function ($, _) {
     },
     _config_update: function (config_content) {
       var that = this;
-
+      if (!config_content) {
+        $(that.config_element + "+p").remove();
+        return
+      }
       that.client.call(
         "POST",
         "harvest_basket_update_config",
