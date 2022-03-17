@@ -74,6 +74,7 @@ setup(
         socrata_harvester=ckanext.harvest_basket.harvesters:SocrataHarvester
         arcgis_harvester=ckanext.harvest_basket.harvesters:ArcGISHarvester
         custom_ckan_harvester=ckanext.harvest_basket.harvesters:CustomCKANHarvester
+        ods_harvester=ckanext.harvest_basket.harvesters:ODSHarvester
 
         [babel.extractors]
         ckan = ckan.lib.extract:extract_ckan
