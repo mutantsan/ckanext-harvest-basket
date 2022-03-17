@@ -110,7 +110,7 @@ ckan.module("harvest-config", function ($, _) {
     _config_update: function (config_content) {
       var that = this;
       if (!config_content) {
-        $(that.config_element + "+p").remove();
+        $(that.config_element + "+.editor-info-block+p").remove();
         return
       }
       that.client.call(
@@ -130,15 +130,15 @@ ckan.module("harvest-config", function ($, _) {
     },
     _show_check_result: function (check_result) {
       var that = this;
-      var error_block = $(that.config_element + "+p");
+      var error_block = $(that.config_element + "+.editor-info-block+p");
 
       if (!check_result && error_block.length) {
         error_block.remove();
       }
 
       if (check_result && !error_block.length) {
-        $(that.config_element).after("<p class='error-block'></p>");
-        var error_block = $(that.config_element + "+p");
+        $(that.config_element + "+.editor-info-block").after("<p class='error-block'></p>");
+        var error_block = $(that.config_element + "+.editor-info-block+p");
       }
       error_block.text(check_result);
     },

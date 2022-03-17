@@ -17,7 +17,24 @@
     }'
     %}
 
-    {{ form.textarea('config', id='field-config', label=_('Configuration'), value=data.config, error=errors.config, placeholder=config_placeholder) }}
+    <div class="form-group control-full">
+        <label class="control-label" for="field-config">
+            {{ _('Configuration') }}
+        </label>
+        <div class="controls editor">
+            <textarea
+                id="field-config"
+                name="config"
+                cols="20" rows="10"
+                placeholder="{{ config_placeholder }}"
+                class="form-control"
+            >
+            {{ data.config or config_placeholder }}
+            </textarea>
+            <span class="editor-info-block">{% trans %}Learn more about <a href="https://github.com/mutantsan/ckanext-transmute#working-with-transmute" target="_blank" title="Transmute extension reference">Transmute schema</a> here{% endtrans %}</span>
+            {% if errors.config and errors.config is iterable %}<span class="error-block">{{ errors.config|join(', ') }}</span>{% endif %}
+        </div>
+    </div>
 
     <div class="harvest-checkup-preview" data-module="harvest-change-source-type harvest-config">
         <div class="form-group control-full">
