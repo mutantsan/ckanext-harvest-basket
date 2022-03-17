@@ -77,7 +77,8 @@ class BasketBasicHarvester(HarvesterBase):
             log.error(err_msg)
 
         if resp is None:
-            raise tk.ValidationError({self.SRC_ID: err_msg})
+            log.error(f"{self.SRC_ID}: {err_msg}")
+            return
 
         if resp.status_code == 200:
             return resp

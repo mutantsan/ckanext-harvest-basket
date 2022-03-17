@@ -89,9 +89,12 @@ class ODSHarvester(BasketBasicHarvester):
 		"""
 
 		pkg_dicts = []
-		params = {"rows": 50, "include_app_metas": True}
 
 		max_datasets = tk.asint(self.config.get("max_datasets", 0))
+		params = {"rows": 50, "include_app_metas": True}
+
+		if 1 <= max_datasets <= 100:
+			params["rows"] = max_datasets
 
 		search_url = urljoin(source_url, "/api/v2/catalog/datasets")
 		url = search_url + "?" + urlencode(params)
@@ -122,7 +125,7 @@ class ODSHarvester(BasketBasicHarvester):
 			if max_datasets and len(pkg_dicts) > max_datasets:
 				break
 		
-		return pkg_dicts[:max_datasets] if max_datasets else pkg_dicts
+		return pkg_dicts
 
 	def _get_next_page_datasets_url(self, pkg_dict):
 		for link in pkg_dict["links"]:
