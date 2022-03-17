@@ -165,7 +165,7 @@ class DKANHarvester(BasketBasicHarvester):
 
         content["private"] = False
         content["state"] = content.get("state", "active").lower()
-        content["type"] = content.get("type", "dataset").lower()
+        content["type"] = "dataset"
 
         content["metadata_created"] = self._datetime_refine(
             content.get("metadata_created")

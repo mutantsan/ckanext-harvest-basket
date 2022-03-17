@@ -42,6 +42,7 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
         return package_dict
     
     def _pre_map_stage(self, data_dict, source_url):
+        data_dict["type"] = "dataset"
         return data_dict
 
     def transmute_data(self, data, schema):

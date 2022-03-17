@@ -210,6 +210,7 @@ class ArcGISHarvester(BasketBasicHarvester):
         package_dict["resources"] = self._resources_fetch(package_dict)
         package_dict["url"] = package_dict.get("url", "")
         package_dict["origin_type"] = package_dict.pop("type")
+        package_dict["type"] = "dataset"
 
         package_dict["extras"] = []
 

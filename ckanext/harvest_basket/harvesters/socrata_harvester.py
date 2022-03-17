@@ -369,7 +369,7 @@ class SocrataHarvester(BasketBasicHarvester):
             content.get("indexUpdatedAt", "")
         )
         content["url"] = self._get_pkg_source_url(content["id"])
-
+        content["type"] = "dataset"
         # datasets with map displayType or geo viewType contains geojson data
         # that we can harvest as geojson file
         if content.get("displayType") == "map" or content.get("viewType") == "geo":
