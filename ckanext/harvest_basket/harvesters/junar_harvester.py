@@ -85,10 +85,10 @@ class JunarHarvester(BasketBasicHarvester):
             )
 
         pkg_dicts = []
-        self.url = urljoin(source_url, f"/api/v2/datastreams/?auth_key={auth_key}&limit=100")
         offset = 0
-
         max_datasets = int(self.config.get("max_datasets", 0))
+        limit = max_datasets or 100 if max_datasets <= 100 else 100
+        self.url = urljoin(source_url, f"/api/v2/datastreams/?auth_key={auth_key}&limit={limit}")
 
         while True:
             log.info(f"{self.SRC_ID}: gathering remote dataset: {self.url}")
@@ -123,7 +123,7 @@ class JunarHarvester(BasketBasicHarvester):
                 pkg_dicts.append(pkg)
 
             offset += 100
-            if max_datasets and len(pkg_dicts) > max_datasets:
+            if max_datasets and len(pkg_dicts) >= max_datasets:
                 break
 
         return pkg_dicts
@@ -137,7 +137,7 @@ class JunarHarvester(BasketBasicHarvester):
         return True
 
     def _pre_map_stage(self, package_dict: dict, source_url: str):
-        package_dict["id"] = package_dict["guid"]
+        package_dict["id"] = self._generate_unique_id(package_dict["guid"])
         package_dict["notes"] = package_dict.get("description", "")
         package_dict["url"] = package_dict.get("link", "")
         package_dict["author"] = package_dict.get("user", "")
