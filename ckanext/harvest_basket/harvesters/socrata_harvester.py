@@ -157,7 +157,7 @@ class SocrataHarvester(BasketBasicHarvester):
 
         resource = {}
         resource_url = self._get_resource_url(pkg_data)
-        resource["package_id"] = pkg_data["id"]
+        resource["package_id"] = pkg_data["origin_id"]
         resource["url"] = resource_url
         resource["format"] = "CSV"
         resource["name"] = pkg_data["name"]
@@ -175,10 +175,10 @@ class SocrataHarvester(BasketBasicHarvester):
 
                 # getting the file download url
                 if att.get("assetId"):
-                    resource["url"] = self._get_attachment_url(pkg_data["id"], att)
+                    resource["url"] = self._get_attachment_url(pkg_data["origin_id"], att)
                 else:
                     resource["url"] = self._get_attachment_url(
-                        pkg_data["id"], att, blob=True
+                        pkg_data["origin_id"], att, blob=True
                     )
 
                 resource["package_id"] = pkg_data["id"]
@@ -213,7 +213,7 @@ class SocrataHarvester(BasketBasicHarvester):
                 str: remote resource URL
         """
         if pkg_data.get("viewType", "") == "tabular":
-            api_offset = f"/api/views/{pkg_data['id']}/rows.csv"
+            api_offset = f"/api/views/{pkg_data['origin_id']}/rows.csv"
             return parse.urljoin(self.source_url, api_offset)
 
     def _get_attachment_url(self, pkg_id, attachment, blob=False):
@@ -233,10 +233,10 @@ class SocrataHarvester(BasketBasicHarvester):
         """Fetches the package URL on remote portal
 
         Args:
-                        pkg_id (str): package ID
+            pkg_id (str): package ID
 
         Returns:
-                        str: remote package URL
+            str: remote package URL
         """
         api_offset = f"/api/views/metadata/v1/{pkg_id}"
         url = parse.urljoin(self.source_url, api_offset)
@@ -353,10 +353,14 @@ class SocrataHarvester(BasketBasicHarvester):
         otherwise, the field stay the same
 
         Args:
-                content (dict): remote package data
+            content (dict): remote package data
         """
+        content["origin_id"] = content["id"]
+        content["id"] = self._generate_unique_id(content["origin_id"])
+
         content["resources"] = self._resources_fetch(content)
         content["tags"] = self._fetch_tags(content.get("tags", []))
+        content["title"] = content["name"]
         content["name"] = self._ensure_name_is_unique(content.get("name", ""))
         content["notes"] = content.get("description", "")
         content["private"] = False
@@ -368,18 +372,18 @@ class SocrataHarvester(BasketBasicHarvester):
         content["metadata_modified"] = self._datetime_refine(
             content.get("indexUpdatedAt", "")
         )
-        content["url"] = self._get_pkg_source_url(content["id"])
+        content["url"] = self._get_pkg_source_url(content["origin_id"])
         content["type"] = "dataset"
         # datasets with map displayType or geo viewType contains geojson data
         # that we can harvest as geojson file
         if content.get("displayType") == "map" or content.get("viewType") == "geo":
-            geo = self._get_spatial_coverage(content["id"])
+            geo = self._get_spatial_coverage(content["origin_id"])
             if geo:
                 content["spatial"] = geo
 
             resource = {}
-            resource["package_id"] = content.get("id")
-            resource["url"] = self._get_geojson_data_url(content["id"])
+            resource["package_id"] = content["id"]
+            resource["url"] = self._get_geojson_data_url(content["origin_id"])
             resource["format"] = "GeoJSON"
             resource["name"] = content.get("name", "")
 
