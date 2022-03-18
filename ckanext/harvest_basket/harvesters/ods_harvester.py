@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import logging
-from typing import Iterable
-import urllib
 import json
+from typing import Iterable
 from urllib.parse import urljoin, urlencode
 
 import ckan.plugins.toolkit as tk
@@ -135,12 +136,10 @@ class ODSHarvester(BasketBasicHarvester):
 	def _fetch_resources(self, source_url, resource_urls, pkg_data):
 		resources = []
 
-		pkg_id = pkg_data["dataset"]["dataset_id"]
-
 		for res in resource_urls:
 			resource = {}
 
-			resource["package_id"] = pkg_id
+			resource["package_id"] = pkg_data["id"]
 			resource["url"] = res["href"]
 			resource["format"] = res["rel"].upper()
 
@@ -155,9 +154,9 @@ class ODSHarvester(BasketBasicHarvester):
 			offset = "/api/datasets/1.0/{}/attachments/{}/"
 			for att in atts:
 				resource = {}
-				url = urljoin(source_url, offset.format(pkg_id, att["id"]))
+				url = urljoin(source_url, offset.format(pkg_data["origin_id"], att["id"]))
 
-				resource["package_id"] = pkg_id
+				resource["package_id"] = pkg_data["id"]
 				resource["url"] = url
 				resource["format"] = (att["url"].split(".")[-1]).upper()
 				resource["name"] = att.get("title", "")
@@ -174,14 +173,15 @@ class ODSHarvester(BasketBasicHarvester):
 		return True
 
 	def _pre_map_stage(self, package_dict: dict, source_url: str):
-		package_dict["id"] = package_dict["dataset"]["dataset_id"]
+		package_dict["origin_id"] = origin_id  = package_dict["dataset"]["dataset_id"]
+		package_dict["id"] = self._generate_unique_id(origin_id)
 		package_dict["url"] = self._get_dataset_links_data(package_dict)
 
 		meta = package_dict["dataset"]["metas"]["default"]
 
 		package_dict["notes"] = self._description_refine(meta.get("description"))
 
-		res_export_url = self._get_export_resource_url(source_url, package_dict["id"])
+		res_export_url: str = self._get_export_resource_url(source_url, origin_id)
 		res_links = self._get_all_resource_urls(res_export_url)
 		package_dict["resources"] = self._fetch_resources(source_url, res_links, package_dict)
 
@@ -219,7 +219,15 @@ class ODSHarvester(BasketBasicHarvester):
 		offset = "/api/v2/catalog/datasets/{}/exports".format(pkg_id)
 		return source_url + offset
 
-	def _get_all_resource_urls(self, res_link):
+	def _get_all_resource_urls(self, res_link: str) -> list[str]:
+		"""Fetches a resource URLs
+
+		Args:
+			res_link (str): resource API endpoint
+
+		Returns:
+			list[str]: list of url strings
+		"""
 		if not res_link:
 			return []
 
