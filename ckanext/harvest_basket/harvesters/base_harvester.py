@@ -2,6 +2,7 @@ from __future__ import annotations
 import requests
 import logging
 import json
+import uuid
 from typing import Optional
 from datetime import datetime as dt
 from dateutil import parser
@@ -248,3 +249,16 @@ class BasketBasicHarvester(HarvesterBase):
 
     def _get_src_url(self, harvest_obj) -> str:
         return harvest_obj.source.url.strip("/")
+    
+    def _generate_unique_id(self, origin_id: str) -> str:
+        """Generates a stable unique ID based on origin remote pkg ID
+        and source name
+
+        Args:
+            origin_id (str): origin remote package ID
+
+        Returns:
+            str: unique ID
+        """
+        namespace = uuid.uuid5(uuid.NAMESPACE_DNS, self.SRC_ID)
+        return str(uuid.uuid5(namespace, origin_id))
