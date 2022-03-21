@@ -126,7 +126,7 @@ class ODSHarvester(BasketBasicHarvester):
 			if max_datasets and len(pkg_dicts) > max_datasets:
 				break
 		
-		return pkg_dicts
+		return pkg_dicts[:max_datasets] if max_datasets else pkg_dicts
 
 	def _get_next_page_datasets_url(self, pkg_dict):
 		for link in pkg_dict["links"]:
