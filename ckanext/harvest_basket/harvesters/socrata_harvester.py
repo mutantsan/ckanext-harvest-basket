@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import geojson
-from io import StringIO
+from io import BytesIO
 from urllib import parse
 
 from ckan.lib.helpers import json
@@ -258,10 +258,10 @@ class SocrataHarvester(BasketBasicHarvester):
         and drop the lines and polygons.
 
         Args:
-                pkg_id (str): remote package ID
+            pkg_id (str): remote package ID
 
         Returns:
-                str: spatial coverage
+            str: spatial coverage
         """
 
         url = self._get_geojson_data_url(pkg_id)
@@ -280,7 +280,7 @@ class SocrataHarvester(BasketBasicHarvester):
         # downloading geojson file by chunks into buffer
         # if filesize is too big, then skip it
         # user can define the maxsize in config
-        gjson_data = StringIO()
+        gjson_data = BytesIO()
 
         for number, chunk in enumerate(geo.iter_content(chunk_size=1024 * 32)):
             if chunk:
