@@ -2,7 +2,6 @@ harvest_basket-js:
   filter: rjsmin
   output: ckanext-harvest_basket/%(version)s-harvest_basket.js
   contents:
-    - js/ajv7.min.js
     - js/harvest_basket.js
   extra:
     preload:
