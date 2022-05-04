@@ -2,4 +2,4 @@ html2markdown
 geojson~=2.5.0
 jsonschema
 
-ckanext-transmute~=1.2.6
+ckanext-transmute~=1.2.7
