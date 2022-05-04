@@ -25,6 +25,11 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
 
         super().import_stage(harvest_object)
     
+    def _search_for_datasets(self, remote_ckan_base_url, fq_terms=None):
+        pkg_dicts = super()._search_for_datasets(remote_ckan_base_url, fq_terms)
+        max_datasets = int(self.config.get("max_datasets", 0))
+        return pkg_dicts[:max_datasets] if max_datasets else pkg_dicts
+
     def _search_datasets(self, remote_url: str):
         url = remote_url.rstrip("/") + "/api/action/package_search?rows=1"
         resp = self._make_request(url)
