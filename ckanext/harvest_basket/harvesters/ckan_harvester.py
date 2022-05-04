@@ -45,8 +45,15 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
             raise SearchError(err_msg)
 
         return package_dict
-    
+
+    def fetch_stage(self, harvest_object):
+        data_dict = json.loads(harvest_object.content)
+        data_dict["type"] = "dataset"
+        harvest_object.content = json.dumps(data_dict)
+        return super().fetch_stage(harvest_object)
+
     def _pre_map_stage(self, data_dict, source_url):
+        data_dict["type initial"] = data_dict["type"]
         data_dict["type"] = "dataset"
         return data_dict
 

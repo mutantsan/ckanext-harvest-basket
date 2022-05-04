@@ -15,7 +15,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # http://packaging.python.org/en/latest/tutorial.html#version
-    version="1.2.3",
+    version="1.2.4",
     description="""A bunch of custom harvesters for ckanext-harvest""",
     long_description=long_description,
     long_description_content_type="text/markdown",
