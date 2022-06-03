@@ -97,7 +97,9 @@ class DKANHarvester(BasketBasicHarvester):
         try:
             package_names = json.loads(package_names)["result"]
         except ValueError as e:
-            raise SearchError(f"{self.SRC_ID}: response from remote portal was not a JSON: {e}")
+            raise SearchError(
+                f"{self.SRC_ID}: response from remote portal was not a JSON: {e}"
+            )
 
         max_datasets = int(self.config.get("max_datasets", 0))
         delay = int(self.config.get("delay", 0))
@@ -114,9 +116,7 @@ class DKANHarvester(BasketBasicHarvester):
             try:
                 package_dict_page = json.loads(resp.text)["result"]
             except ValueError as e:
-                log.error(
-                    f"{self.SRC_ID}: Response JSON doesn't contain result: {e}"
-                )
+                log.error(f"{self.SRC_ID}: Response JSON doesn't contain result: {e}")
                 continue
 
             # some portals return a dict as result, not a list

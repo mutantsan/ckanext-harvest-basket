@@ -51,9 +51,7 @@ class SocrataHarvester(BasketBasicHarvester):
         if not pkg_dicts:
             log.error("Searching returns empty result.")
             self._save_gather_error(
-                "No datasets found at Socrata remote portal: {}".format(
-                    source_url
-                ),
+                "No datasets found at Socrata remote portal: {}".format(source_url),
                 harvest_job,
             )
             return []
@@ -175,7 +173,9 @@ class SocrataHarvester(BasketBasicHarvester):
 
                 # getting the file download url
                 if att.get("assetId"):
-                    resource["url"] = self._get_attachment_url(pkg_data["origin_id"], att)
+                    resource["url"] = self._get_attachment_url(
+                        pkg_data["origin_id"], att
+                    )
                 else:
                     resource["url"] = self._get_attachment_url(
                         pkg_data["origin_id"], att, blob=True

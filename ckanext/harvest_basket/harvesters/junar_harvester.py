@@ -69,9 +69,7 @@ class JunarHarvester(BasketBasicHarvester):
 
             return object_ids
         except Exception as e:
-            log.debug(
-                f"{self.SRC_ID}: The error occured during the gather stage: {e}"
-            )
+            log.debug(f"{self.SRC_ID}: The error occured during the gather stage: {e}")
             self._save_gather_error(str(e), harvest_job)
             return []
 
@@ -88,7 +86,9 @@ class JunarHarvester(BasketBasicHarvester):
         offset = 0
         max_datasets = int(self.config.get("max_datasets", 0))
         limit = max_datasets or 100 if max_datasets <= 100 else 100
-        self.url = urljoin(source_url, f"/api/v2/datastreams/?auth_key={auth_key}&limit={limit}")
+        self.url = urljoin(
+            source_url, f"/api/v2/datastreams/?auth_key={auth_key}&limit={limit}"
+        )
 
         while True:
             log.info(f"{self.SRC_ID}: gathering remote dataset: {self.url}")
@@ -103,16 +103,16 @@ class JunarHarvester(BasketBasicHarvester):
                         f"{self.SRC_ID}: invalid response type, not a JSON"
                     )
             else:
-                raise SearchError(
-                    f"{self.SRC_ID}: error accessing remote portal"
-                )
+                raise SearchError(f"{self.SRC_ID}: error accessing remote portal")
 
             package_ids = set()
 
-            package_list = pkgs_data.get("results") if isinstance(pkgs_data, dict) else pkgs_data
+            package_list = (
+                pkgs_data.get("results") if isinstance(pkgs_data, dict) else pkgs_data
+            )
             if not package_list:
                 break
-            
+
             for pkg in package_list:
                 if pkg["guid"] in package_ids:
                     log.debug(
@@ -148,9 +148,7 @@ class JunarHarvester(BasketBasicHarvester):
         package_dict["type"] = "dataset"
 
         package_dict["name"] = munge_name(package_dict["title"])
-        package_dict["resources"] = self._fetch_resources(
-            package_dict, source_url
-        )
+        package_dict["resources"] = self._fetch_resources(package_dict, source_url)
 
         extra = (
             ("frequency", "Update Frequency"),

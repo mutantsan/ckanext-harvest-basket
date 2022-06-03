@@ -67,14 +67,10 @@ class BasketBasicHarvester(HarvesterBase):
             err_msg = f"{self.SRC_ID}: Connection timeout: {e}"
             log.error(err_msg)
         except requests.exceptions.ConnectionError as e:
-            err_msg = (
-                f"{self.SRC_ID}: The Connection error happend during request {e}"
-            )
+            err_msg = f"{self.SRC_ID}: The Connection error happend during request {e}"
             log.error(err_msg)
         except requests.exceptions.RequestException as e:
-            err_msg = (
-                f"{self.SRC_ID}: The Request error happend during request {e}"
-            )
+            err_msg = f"{self.SRC_ID}: The Request error happend during request {e}"
             log.error(err_msg)
 
         if resp is None:
@@ -138,7 +134,7 @@ class BasketBasicHarvester(HarvesterBase):
             self.config = json.loads(config_str)
         else:
             self.config = {}
-        
+
         return self.config
 
     def _fetch_tags(self, tag_list: list[str]) -> list[dict[str, str]]:
@@ -168,9 +164,9 @@ class BasketBasicHarvester(HarvesterBase):
             "session": model.Session,
             "user": self._get_user_name(),
         }
-        
+
         config = self._set_config(harvest_object.source.config)
-    
+
         if not harvest_object:
             log.error("No harvest object received")
             return False
@@ -249,7 +245,7 @@ class BasketBasicHarvester(HarvesterBase):
 
     def _get_src_url(self, harvest_obj) -> str:
         return harvest_obj.source.url.strip("/")
-    
+
     def _generate_unique_id(self, origin_id: str) -> str:
         """Generates a stable unique ID based on origin remote pkg ID
         and source name

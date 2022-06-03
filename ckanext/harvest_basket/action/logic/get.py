@@ -8,8 +8,12 @@ from jsonschema import validate, ValidationError as SchemaValidationError
 import ckan.plugins.toolkit as tk
 
 from ckanext.harvest_basket.harvesters import (
-    DKANHarvester, JunarHarvester, SocrataHarvester,
-    ArcGISHarvester, CustomCKANHarvester, ODSHarvester
+    DKANHarvester,
+    JunarHarvester,
+    SocrataHarvester,
+    ArcGISHarvester,
+    CustomCKANHarvester,
+    ODSHarvester,
 )
 from ckanext.transmute.utils import get_json_schema
 
@@ -31,7 +35,7 @@ def check_source(ctx: dict[str, Any], data_dict: dict) -> dict[str, Any]:
         "socrata": SocrataHarvester,
         "arcgis": ArcGISHarvester,
         "ckan": CustomCKANHarvester,
-        "ods": ODSHarvester
+        "ods": ODSHarvester,
     }
 
     harvester_class = sources.get(source_name)

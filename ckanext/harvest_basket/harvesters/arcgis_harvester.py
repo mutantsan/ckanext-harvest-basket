@@ -74,9 +74,7 @@ class ArcGISHarvester(BasketBasicHarvester):
 
             return object_ids
         except Exception as e:
-            log.debug(
-                f"{self.SRC_ID}: the error occured during the gather stage: {e}"
-            )
+            log.debug(f"{self.SRC_ID}: the error occured during the gather stage: {e}")
             self._save_gather_error("{}".format(e), harvest_job)
             return []
 
@@ -140,9 +138,7 @@ class ArcGISHarvester(BasketBasicHarvester):
                 service["url"] for service in content["services"] if service.get("url")
             ]
         except KeyError as e:
-            log.debug(
-                f"{self.SRC_ID}: there is no available services in remote portal"
-            )
+            log.debug(f"{self.SRC_ID}: there is no available services in remote portal")
             return []
 
         return services_urls

@@ -7,7 +7,10 @@ from ckanext.harvest_basket.harvesters.ods_harvester import ODSHarvester
 
 
 __all__ = [
-    "DKANHarvester", "JunarHarvester",
-    "SocrataHarvester", "ArcGISHarvester",
-    "CustomCKANHarvester", "ODSHarvester"
+    "DKANHarvester",
+    "JunarHarvester",
+    "SocrataHarvester",
+    "ArcGISHarvester",
+    "CustomCKANHarvester",
+    "ODSHarvester",
 ]

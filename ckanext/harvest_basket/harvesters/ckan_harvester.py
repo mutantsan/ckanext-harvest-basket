@@ -24,7 +24,7 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
         harvest_object.content = json.dumps(package_dict)
 
         super().import_stage(harvest_object)
-    
+
     def _search_for_datasets(self, remote_ckan_base_url, fq_terms=None):
         pkg_dicts = super()._search_for_datasets(remote_ckan_base_url, fq_terms)
         max_datasets = int(self.config.get("max_datasets", 0))
@@ -63,7 +63,7 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
                 {
                     "model": model,
                     "session": model.Session,
-                    "user": self._get_user_name()
+                    "user": self._get_user_name(),
                 },
-                {"data": data, "schema": schema}
+                {"data": data, "schema": schema},
             )
