@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import logging
 import json
-from typing import Iterable
+from typing import Iterable, Any
 from urllib.parse import urljoin, urlencode
 
 import ckan.plugins.toolkit as tk
-from ckan.lib.helpers import render_markdown
-from ckan.lib.munge import munge_tag
 from ckan.lib.navl.validators import unicode_safe
 
 from ckanext.harvest.model import HarvestObject
-from ckanext.harvest.harvesters.ckanharvester import ContentFetchError, SearchError
+from ckanext.harvest.harvesters.ckanharvester import SearchError
 
 from ckanext.harvest_basket.harvesters.base_harvester import BasketBasicHarvester
 
@@ -92,7 +90,16 @@ class ODSHarvester(BasketBasicHarvester):
         pkg_dicts = []
 
         max_datasets = tk.asint(self.config.get("max_datasets", 0))
-        params = {"rows": 50, "include_app_metas": True}
+
+        params = {
+            "rows": 50,
+            "include_app_metas": True
+        }
+
+        where = self.config.get("where")
+
+        if where:
+            params["where"] = where
 
         if 1 <= max_datasets <= 100:
             params["rows"] = max_datasets
@@ -142,19 +149,15 @@ class ODSHarvester(BasketBasicHarvester):
             resource["package_id"] = pkg_data["id"]
             resource["url"] = res["href"]
             resource["format"] = res["rel"].upper()
-
-            pkg_meta = pkg_data["dataset"]["metas"]["default"]
-            resource[
-                "name"
-            ] = f"{pkg_meta.get('title', 'Unnamed resource')} ({res['rel']})"
+            resource["name"] = f"{pkg_data.get('title', tk._('Unnamed resource'))} ({res['rel']})"
 
             resources.append(resource)
 
         # attachments are an additional resources that we can fetch
-        atts = pkg_data["dataset"].get("attachments")
-        if atts:
+        attachments = pkg_data.get("attachments")
+        if attachments:
             offset = "/api/datasets/1.0/{}/attachments/{}/"
-            for att in atts:
+            for att in attachments:
                 resource = {}
                 url = urljoin(
                     source_url, offset.format(pkg_data["origin_id"], att["id"])
@@ -177,13 +180,11 @@ class ODSHarvester(BasketBasicHarvester):
         return True
 
     def _pre_map_stage(self, package_dict: dict, source_url: str):
-        package_dict["origin_id"] = origin_id = package_dict["dataset"]["dataset_id"]
+        self._flatten_ods_dataset_dict(package_dict)
+        package_dict["origin_id"] = origin_id = package_dict["dataset_id"]
         package_dict["id"] = self._generate_unique_id(origin_id)
         package_dict["url"] = self._get_dataset_links_data(package_dict)
-
-        meta = package_dict["dataset"]["metas"]["default"]
-
-        package_dict["notes"] = self._description_refine(meta.get("description"))
+        package_dict["notes"] = self._description_refine(package_dict.get("description"))
 
         res_export_url: str = self._get_export_resource_url(source_url, origin_id)
         res_links = self._get_all_resource_urls(res_export_url)
@@ -191,9 +192,7 @@ class ODSHarvester(BasketBasicHarvester):
             source_url, res_links, package_dict
         )
 
-        package_dict["tags"] = self._fetch_tags(meta.get("keyword"))
-        package_dict["author"] = meta.get("publisher", "")
-        package_dict["title"] = meta.get("title")
+        package_dict["tags"] = self._fetch_tags(package_dict.get("keyword"))
         package_dict["type"] = "dataset"
 
         extra = (
@@ -207,16 +206,18 @@ class ODSHarvester(BasketBasicHarvester):
 
         package_dict["extras"] = []
 
-        if isinstance(meta.get("theme"), Iterable):
-            package_dict["extras"].append(
-                {"key": "Themes", "value": ", ".join(meta.get("theme"))}
-            )
-
         for field in extra:
-            if meta.get(field[0]):
+            if package_dict.get(field[0]):
                 package_dict["extras"].append(
-                    {"key": field[1], "value": meta[field[0]]}
+                    {"key": field[1], "value": package_dict[field[0]]}
                 )
+
+    def _flatten_ods_dataset_dict(self, pkg_dict):
+        pkg_dict.update(pkg_dict.pop('dataset'))
+        pkg_dict.update(pkg_dict['metas'].pop('default'))
+        pkg_dict.update(pkg_dict['metas'].pop('custom'))
+        pkg_dict.pop("metas")
+        pkg_dict.pop("fields")
 
     def _get_dataset_links_data(self, pkg_links):
         for link in pkg_links["links"]:
