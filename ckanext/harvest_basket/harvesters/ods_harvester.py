@@ -91,10 +91,7 @@ class ODSHarvester(BasketBasicHarvester):
 
         max_datasets = tk.asint(self.config.get("max_datasets", 0))
 
-        params = {
-            "rows": 50,
-            "include_app_metas": True
-        }
+        params = {"rows": 50, "include_app_metas": True}
 
         where = self.config.get("where")
 
@@ -149,7 +146,9 @@ class ODSHarvester(BasketBasicHarvester):
             resource["package_id"] = pkg_data["id"]
             resource["url"] = res["href"]
             resource["format"] = res["rel"].upper()
-            resource["name"] = f"{pkg_data.get('title', tk._('Unnamed resource'))} ({res['rel']})"
+            resource[
+                "name"
+            ] = f"{pkg_data.get('title', tk._('Unnamed resource'))} ({res['rel']})"
 
             resources.append(resource)
 
@@ -184,7 +183,9 @@ class ODSHarvester(BasketBasicHarvester):
         package_dict["origin_id"] = origin_id = package_dict["dataset_id"]
         package_dict["id"] = self._generate_unique_id(origin_id)
         package_dict["url"] = self._get_dataset_links_data(package_dict)
-        package_dict["notes"] = self._description_refine(package_dict.get("description"))
+        package_dict["notes"] = self._description_refine(
+            package_dict.get("description")
+        )
 
         res_export_url: str = self._get_export_resource_url(source_url, origin_id)
         res_links = self._get_all_resource_urls(res_export_url)
@@ -213,9 +214,16 @@ class ODSHarvester(BasketBasicHarvester):
                 )
 
     def _flatten_ods_dataset_dict(self, pkg_dict):
-        pkg_dict.update(pkg_dict.pop('dataset'))
-        pkg_dict.update(pkg_dict['metas'].pop('default'))
-        pkg_dict.update(pkg_dict['metas'].pop('custom'))
+        pkg_dict.update(pkg_dict.pop("dataset"))
+
+        meta_dict = pkg_dict["metas"]
+        meta_keys: list[str] = list(meta_dict.keys())
+
+        for category in meta_keys:
+            for field in meta_dict[category]:
+                new_key: str = field if category == "default" else f"{category}_{field}"
+                pkg_dict[new_key] = meta_dict[category][field]
+
         pkg_dict.pop("metas")
         pkg_dict.pop("fields")
 
@@ -254,7 +262,7 @@ class ODSHarvester(BasketBasicHarvester):
             return []
 
         res_links = []
-        formats = ("csv", "json", "xls", "geojson")
+        formats = ("csv", "json", "xls", "geojson", "shp", "kml")
         for link in content["links"]:
             if link["rel"].lower() not in formats or not link["href"]:
                 continue
