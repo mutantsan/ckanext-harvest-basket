@@ -82,7 +82,7 @@ class BasketBasicHarvester(HarvesterBase):
 
         err_msg = (
             f"{self.SRC_ID}: Bad response from remote portal: "
-            f"{resp.status_code}, {resp.json().get('description') or resp.reason}"
+            f"{resp.status_code}, {resp.reason}"
         )
         log.error(err_msg)
         raise tk.ValidationError({self.SRC_ID: err_msg})
@@ -92,14 +92,14 @@ class BasketBasicHarvester(HarvesterBase):
 
 
         Args:
-                source_url (str): remote portal URL
-                config (dict): config dictionary with some options to adjust
-                                                harvester (e.g schema, max_datasets, delay)
+            source_url (str): remote portal URL
+            config (dict): config dictionary with some options to adjust
+                            harvester (e.g schema, max_datasets, delay)
 
         Raises:
-                tk.ValidationError: raises validation error if the fetch failed
-                                                        returns all the information about endpoint
-                                                        and occured error
+            tk.ValidationError: raises validation error if the fetch failed
+                                returns all the information about endpoint
+                                and occured error
 
         Returns:
                 dict: must return a remote dataset meta dict
