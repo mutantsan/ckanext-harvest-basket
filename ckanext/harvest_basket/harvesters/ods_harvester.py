@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import mimetypes
 import logging
 import json
-from typing import Iterable, Any
+from typing import Any
 from urllib.parse import urljoin, urlencode
 
 import ckan.plugins.toolkit as tk
@@ -164,11 +165,24 @@ class ODSHarvester(BasketBasicHarvester):
 
                 resource["package_id"] = pkg_data["id"]
                 resource["url"] = url
-                resource["format"] = (att["url"].split(".")[-1]).upper()
+                resource["format"] = self._guess_attachment_format(att)
                 resource["name"] = att.get("title", "")
 
                 resources.append(resource)
         return resources
+
+    def _guess_attachment_format(self, attachment: dict[str, str]) -> str:
+        """The attachment doesn't have a format field, only mimetype. So we
+        could try to guess a format by mimetype. If it's not here, use a url
+        and try to parse format from it (it could end with something like
+        `attachment_name.pdf`"""
+        mimetype: str | None = attachment.get("mimetype")
+        if mimetype:
+            dot_format: str | None = mimetypes.guess_extension(mimetype)
+            if dot_format:
+                return dot_format.strip(".")
+
+        return (attachment["url"].split(".")[-1]).upper()
 
     def fetch_stage(self, harvest_object):
         self._set_config(harvest_object.source.config)
