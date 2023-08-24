@@ -195,7 +195,7 @@ class ODSHarvester(BasketBasicHarvester):
     def _pre_map_stage(self, package_dict: dict, source_url: str):
         self._flatten_ods_dataset_dict(package_dict)
         package_dict["origin_id"] = origin_id = package_dict["dataset_id"]
-        package_dict["id"] = self._generate_unique_id(origin_id)
+        package_dict["id"] = self._generate_unique_id(origin_id, source_url)
         package_dict["url"] = self._get_dataset_links_data(package_dict)
         package_dict["notes"] = self._description_refine(
             package_dict.get("description")
@@ -207,7 +207,7 @@ class ODSHarvester(BasketBasicHarvester):
             source_url, res_links, package_dict
         )
 
-        package_dict["tags"] = self._fetch_tags(package_dict.get("keyword"))
+        package_dict["tags"] = self._fetch_tags(package_dict.get("keyword", []))
         package_dict["type"] = "dataset"
 
         extra = (

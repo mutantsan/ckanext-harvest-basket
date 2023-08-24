@@ -137,7 +137,7 @@ class JunarHarvester(BasketBasicHarvester):
         return True
 
     def _pre_map_stage(self, package_dict: dict, source_url: str):
-        package_dict["id"] = self._generate_unique_id(package_dict["guid"])
+        package_dict["id"] = self._generate_unique_id(package_dict["guid"], source_url)
         package_dict["notes"] = package_dict.get("description", "")
         package_dict["url"] = package_dict.get("link", "")
         package_dict["author"] = package_dict.get("user", "")

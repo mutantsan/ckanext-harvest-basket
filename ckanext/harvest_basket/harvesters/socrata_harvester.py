@@ -356,7 +356,7 @@ class SocrataHarvester(BasketBasicHarvester):
             content (dict): remote package data
         """
         content["origin_id"] = content["id"]
-        content["id"] = self._generate_unique_id(content["origin_id"])
+        content["id"] = self._generate_unique_id(content["origin_id"], source_url)
 
         content["resources"] = self._resources_fetch(content)
         content["tags"] = self._fetch_tags(content.get("tags", []))
