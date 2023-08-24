@@ -178,6 +178,10 @@ class ODSHarvester(BasketBasicHarvester):
         `attachment_name.pdf`"""
         mimetype: str | None = attachment.get("mimetype")
         if mimetype:
+            formats = tk.h.resource_formats()
+            if mimetype in formats:
+                return formats[mimetype][1].lower()
+
             dot_format: str | None = mimetypes.guess_extension(mimetype)
             if dot_format:
                 return dot_format.strip(".")
