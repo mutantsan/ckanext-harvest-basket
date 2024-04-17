@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import logging
-import geojson
+from typing import Any
 from io import BytesIO
 from urllib import parse
+
+import geojson
 
 from ckan.lib.helpers import json
 from ckan.plugins import toolkit as tk
@@ -155,10 +158,11 @@ class SocrataHarvester(BasketBasicHarvester):
 
         resource = {}
         resource_url = self._get_resource_url(pkg_data)
-        resource["package_id"] = pkg_data["origin_id"]
+        resource["package_id"] = pkg_data["id"]
         resource["url"] = resource_url
         resource["format"] = "CSV"
         resource["name"] = pkg_data["name"]
+        resource["id"] = self._generate_unique_id(resource_url, self.source_url)
 
         # if there is no url, skip this resource
         if resource_url:
@@ -183,6 +187,9 @@ class SocrataHarvester(BasketBasicHarvester):
 
                 resource["package_id"] = pkg_data["id"]
                 resource["name"] = att.get("name", "")
+                resource["id"] = self._generate_unique_id(
+                    resource["url"] + att.get("name", ""), self.source_url
+                )
                 resources.append(resource)
 
         try:
@@ -195,9 +202,11 @@ class SocrataHarvester(BasketBasicHarvester):
         for file in add_endpoint["urls"].values():
             resource = {}
             resource["name"] = add_endpoint.get("title", "")
+            resource["package_id"] = pkg_data["id"]
             resource["created"] = self._datetime_refine("")
             resource["last_modified"] = self._datetime_refine("")
             resource["url"] = file
+            resource["id"] = self._generate_unique_id(file, self.source_url)
             resources.append(resource)
 
         return resources
@@ -215,6 +224,8 @@ class SocrataHarvester(BasketBasicHarvester):
         if pkg_data.get("viewType", "") == "tabular":
             api_offset = f"/api/views/{pkg_data['origin_id']}/rows.csv"
             return parse.urljoin(self.source_url, api_offset)
+
+        return ""
 
     def _get_attachment_url(self, pkg_id, attachment, blob=False):
         # there are two different keys which can be presented in filepath url
@@ -250,7 +261,84 @@ class SocrataHarvester(BasketBasicHarvester):
 
         return content.get("dataUri", content.get("webUri", ""))
 
-    def _get_spatial_coverage(self, pkg_id):
+    def fetch_stage(self, harvest_object):
+        self._set_config(harvest_object.source.config)
+        self.source_url = self._get_src_url(harvest_object)
+        package_dict = json.loads(harvest_object.content)
+        self._pre_map_stage(package_dict, self.source_url)
+        harvest_object.content = json.dumps(package_dict)
+        return True
+
+    def _pre_map_stage(self, content: dict, source_url: str):
+        """Premap stage maps the remote portal meta to CKAN
+        if the original field has the same name, the value could be changed
+        otherwise, the field stay the same
+
+        Args:
+            content (dict): remote package data
+        """
+        content["origin_id"] = content["id"]
+        content["id"] = self._generate_unique_id(
+            content["origin_id"] + content["name"], source_url
+        )
+
+        content["resources"] = self._resources_fetch(content)
+        content["tags"] = self._fetch_tags(content.get("tags", []))
+        content["title"] = content["name"][:200]
+        content["name"] = self._ensure_name_is_unique(content.get("name", ""))
+        content["notes"] = content.get("description", "")
+        content["private"] = False
+        if "tableAuthor" in content:
+            content["author"] = content["tableAuthor"].get("displayName", "")
+        content["metadata_created"] = self._datetime_refine(
+            content.get("createdAt", "")
+        )
+        content["metadata_modified"] = self._datetime_refine(
+            content.get("rowsUpdatedAt", "")
+        )
+        content["url"] = self._get_pkg_source_url(content["origin_id"])
+        content["type"] = "dataset"
+
+        # datasets with map displayType or geo viewType contains geojson data
+        # that we can harvest as geojson file
+        if content.get("displayType") == "map" or content.get("viewType") == "geo":
+            self._fetch_geojson_resource(content)
+
+        # fetching extras from remote portal
+        content["extras"] = []
+        if "metadata" in content and "custom_fields" in content["metadata"]:
+            for metadata in content["metadata"]["custom_fields"].values():
+                if isinstance(metadata, str):
+                    k, v = metadata
+                    content["extras"].append({"key": k, "value": v})
+                else:
+                    for k, v in metadata.items():
+                        content["extras"].append({"key": k, "value": v})
+
+        if "category" in content:
+            content["extras"].append({"key": "Category", "value": content["category"]})
+
+    def _fetch_geojson_resource(self, content: dict[Any, Any]):
+        try:
+            geo, url = self._get_spatial_coverage(content["origin_id"])
+        except tk.ValidationError:
+            pass
+        else:
+            if not geo or not url:
+                return
+
+            content["spatial"] = geo
+            content["resources"].append(
+                {
+                    "name": content.get("name", ""),
+                    "id": self._generate_unique_id(url + "GeoJSON", self.source_url),
+                    "format": "GeoJSON",
+                    "url": url,
+                    "package_id": content["id"],
+                }
+            )
+
+    def _get_spatial_coverage(self, pkg_id) -> tuple[str, str]:
         """Fetches the spatial coverage of the remote package
         Because it's impossible to collect correctly all the geojson data
         due to it size (and there is no sense to cut it till it fit the requirements),
@@ -275,7 +363,7 @@ class SocrataHarvester(BasketBasicHarvester):
         geo = self._make_request(url, stream=True)
 
         if not geo:
-            return
+            return "", ""
 
         # downloading geojson file by chunks into buffer
         # if filesize is too big, then skip it
@@ -290,24 +378,24 @@ class SocrataHarvester(BasketBasicHarvester):
                 if number > self.config.get("geojson_maxsize", 2000):
                     log.error("The GeoJSON file is too big for SOLR, skipping...")
                     gjson_data.close()
-                    return
+                    return "", ""
 
         try:
             gjson = geojson.loads(gjson_data.getvalue())["features"]
         except ValueError as e:
             log.error(f"Can't open geojson file, probably it was corrupted: {e}")
-            return
+            return "", ""
 
         if len(gjson) == 0:
             log.error("No valid spatial data in received geojson")
-            return
+            return "", ""
 
         geo = geojson.dumps(gjson)
 
         while len(geo) > self.SOLR_MAX_STRING_SIZE:
             if len(gjson) <= 1:
                 log.error("Spatial data is too big. Skipping...")
-                return
+                return "", ""
             gjson = gjson[: len(gjson) - (len(gjson) // 2)]
             geo = geojson.dumps(gjson)
 
@@ -320,9 +408,11 @@ class SocrataHarvester(BasketBasicHarvester):
 
             geo = geojson.MultiPoint(points)
             if geo["coordinates"]:
-                return geojson.dumps(geo)
+                return geojson.dumps(geo), url
         except TypeError as e:
-            return
+            pass
+
+        return "", ""
 
     def _get_geojson_data_url(self, pkg_id, res=False):
         """Fetches URL to geojson file for a particular package
@@ -338,67 +428,3 @@ class SocrataHarvester(BasketBasicHarvester):
         if res:
             api_offset = f"/resource/{pkg_id}.geojson"
         return parse.urljoin(self.source_url, api_offset)
-
-    def fetch_stage(self, harvest_object):
-        self._set_config(harvest_object.source.config)
-        self.source_url = self._get_src_url(harvest_object)
-        package_dict = json.loads(harvest_object.content)
-        self._pre_map_stage(package_dict, self.source_url)
-        harvest_object.content = json.dumps(package_dict)
-        return True
-
-    def _pre_map_stage(self, content: dict, source_url: str):
-        """Premap stage maps the remote portal meta to CKAN
-        if the original field has the same name, the value could be changed
-        otherwise, the field stay the same
-
-        Args:
-            content (dict): remote package data
-        """
-        content["origin_id"] = content["id"]
-        content["id"] = self._generate_unique_id(content["origin_id"], source_url)
-
-        content["resources"] = self._resources_fetch(content)
-        content["tags"] = self._fetch_tags(content.get("tags", []))
-        content["title"] = content["name"]
-        content["name"] = self._ensure_name_is_unique(content.get("name", ""))
-        content["notes"] = content.get("description", "")
-        content["private"] = False
-        if "tableAuthor" in content:
-            content["author"] = content["tableAuthor"].get("displayName", "")
-        content["metadata_created"] = self._datetime_refine(
-            content.get("createdAt", "")
-        )
-        content["metadata_modified"] = self._datetime_refine(
-            content.get("indexUpdatedAt", "")
-        )
-        content["url"] = self._get_pkg_source_url(content["origin_id"])
-        content["type"] = "dataset"
-        # datasets with map displayType or geo viewType contains geojson data
-        # that we can harvest as geojson file
-        if content.get("displayType") == "map" or content.get("viewType") == "geo":
-            geo = self._get_spatial_coverage(content["origin_id"])
-            if geo:
-                content["spatial"] = geo
-
-            resource = {}
-            resource["package_id"] = content["id"]
-            resource["url"] = self._get_geojson_data_url(content["origin_id"])
-            resource["format"] = "GeoJSON"
-            resource["name"] = content.get("name", "")
-
-            content["resources"].append(resource)
-
-        # fetching extras from remote portal
-        content["extras"] = []
-        if "metadata" in content and "custom_fields" in content["metadata"]:
-            for metadata in content["metadata"]["custom_fields"].values():
-                if isinstance(metadata, str):
-                    k, v = metadata
-                    content["extras"].append({"key": k, "value": v})
-                else:
-                    for k, v in metadata.items():
-                        content["extras"].append({"key": k, "value": v})
-
-        if "category" in content:
-            content["extras"].append({"key": "Category", "value": content["category"]})
