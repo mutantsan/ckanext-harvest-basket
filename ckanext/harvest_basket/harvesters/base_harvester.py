@@ -11,10 +11,12 @@ from html import unescape
 from html2markdown import convert
 
 import ckan.plugins.toolkit as tk
+from ckan.plugins import plugin_loaded
 from ckan import model
 from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.harvesters.base import HarvesterBase
+from ckanext.xloader.utils import XLoaderFormats
 
 
 log = logging.getLogger(__name__)
@@ -227,6 +229,9 @@ class BasketBasicHarvester(HarvesterBase):
             result = self._create_or_update_package(
                 package_dict, harvest_object, package_dict_form="package_show"
             )
+            if result != 'unchanged' and plugin_loaded('xloader'):
+                self.create_or_update_resources(package_dict)
+
             return result
         except tk.ValidationError as e:
             log.error(
@@ -258,3 +263,21 @@ class BasketBasicHarvester(HarvesterBase):
         """
         namespace = uuid.uuid5(uuid.NAMESPACE_DNS, source_id)
         return str(uuid.uuid5(namespace, origin_id))
+
+    def create_or_update_resources(self, package_dict):
+        """
+            Submit Resources to Xloader
+        """
+        try:
+            tk.get_action("package_show")({}, {"id": package_dict.get("id")})
+        except tk.ObjectNotFound:
+            return
+
+        resources = package_dict.get("resources", [])
+
+        for resource in resources:
+            resource_id = resource.get("id")
+
+            if resource_id and XLoaderFormats.is_it_an_xloader_format(resource.get("format")):
+                tk.get_action('xloader_submit')(
+                    {"ignore_auth": True}, {'resource_id': resource_id})
