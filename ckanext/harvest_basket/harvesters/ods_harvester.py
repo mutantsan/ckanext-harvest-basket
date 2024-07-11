@@ -232,7 +232,7 @@ class ODSHarvester(BasketBasicHarvester):
                 )
 
     def _flatten_ods_dataset_dict(self, pkg_dict):
-        pkg_dict.update(pkg_dict.pop("dataset"))
+        pkg_dict.update(pkg_dict.pop("dataset", {}))
 
         meta_dict = pkg_dict["metas"]
         meta_keys: list[str] = list(meta_dict.keys())
