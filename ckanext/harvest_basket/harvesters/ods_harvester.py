@@ -232,18 +232,19 @@ class ODSHarvester(BasketBasicHarvester):
                 )
 
     def _flatten_ods_dataset_dict(self, pkg_dict):
-        pkg_dict.update(pkg_dict.pop("dataset"))
+        pkg_dict.update(pkg_dict.pop("dataset", {}))
 
-        meta_dict = pkg_dict["metas"]
-        meta_keys: list[str] = list(meta_dict.keys())
+        if meta_dict := pkg_dict.get("metas"):
+            meta_keys: list[str] = list(meta_dict.keys())
 
-        for category in meta_keys:
-            for field in meta_dict[category]:
-                new_key: str = field if category == "default" else f"{category}_{field}"
-                pkg_dict[new_key] = meta_dict[category][field]
+            for category in meta_keys:
+                for field in meta_dict[category]:
+                    new_key: str = field if category == "default" else f"{category}_{field}"
+                    pkg_dict[new_key] = meta_dict[category][field]
 
-        pkg_dict.pop("metas")
-        pkg_dict.pop("fields")
+            pkg_dict.pop("metas")
+
+        pkg_dict.pop("fields", {})
 
     def _get_dataset_links_data(self, pkg_links):
         for link in pkg_links["links"]:
