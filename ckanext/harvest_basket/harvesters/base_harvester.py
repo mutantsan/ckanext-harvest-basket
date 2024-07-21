@@ -229,8 +229,10 @@ class BasketBasicHarvester(HarvesterBase):
             result = self._create_or_update_package(
                 package_dict, harvest_object, package_dict_form="package_show"
             )
-            if result != 'unchanged' and plugin_loaded('xloader'):
-                self.create_or_update_resources(package_dict)
+
+            if result != "unchanged" and plugin_loaded("xloader"):
+                package_id = package_dict.get("id")
+                self.create_or_update_resources(package_id)
 
             return result
         except tk.ValidationError as e:
@@ -264,12 +266,15 @@ class BasketBasicHarvester(HarvesterBase):
         namespace = uuid.uuid5(uuid.NAMESPACE_DNS, source_id)
         return str(uuid.uuid5(namespace, origin_id))
 
-    def create_or_update_resources(self, package_dict):
+    def create_or_update_resources(self, package_id):
         """
             Submit Resources to Xloader
         """
         try:
-            tk.get_action("package_show")({}, {"id": package_dict.get("id")})
+            package_dict = tk.get_action("package_show")(
+                self.base_context,
+                {"id": package_id}
+            )
         except tk.ObjectNotFound:
             return
 
@@ -280,4 +285,6 @@ class BasketBasicHarvester(HarvesterBase):
 
             if resource_id and XLoaderFormats.is_it_an_xloader_format(resource.get("format")):
                 tk.get_action('xloader_submit')(
-                    {"ignore_auth": True}, {'resource_id': resource_id})
+                    {"ignore_auth": True},
+                    {'resource_id': resource_id}
+                )
