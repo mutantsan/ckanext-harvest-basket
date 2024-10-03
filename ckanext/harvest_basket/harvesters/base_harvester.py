@@ -16,7 +16,10 @@ from ckan import model
 from ckan.lib.munge import munge_tag
 
 from ckanext.harvest.harvesters.base import HarvesterBase
-from ckanext.xloader.utils import XLoaderFormats
+try:
+    from ckanext.xloader.plugin import XLoaderFormats
+except ImportError:
+    from ckanext.xloader.utils import XLoaderFormats
 
 
 log = logging.getLogger(__name__)

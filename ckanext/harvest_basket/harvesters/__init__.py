@@ -4,7 +4,7 @@ from ckanext.harvest_basket.harvesters.socrata_harvester import SocrataHarvester
 from ckanext.harvest_basket.harvesters.arcgis_harvester import ArcGISHarvester
 from ckanext.harvest_basket.harvesters.ckan_harvester import CustomCKANHarvester
 from ckanext.harvest_basket.harvesters.ods_harvester import ODSHarvester
-
+from .dcat import BasketDcatJsonHarvester
 
 __all__ = [
     "DKANHarvester",
@@ -13,4 +13,5 @@ __all__ = [
     "ArcGISHarvester",
     "CustomCKANHarvester",
     "ODSHarvester",
+    "BasketDcatJsonHarvester",
 ]
