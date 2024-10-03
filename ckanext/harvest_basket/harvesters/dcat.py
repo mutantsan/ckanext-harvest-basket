@@ -19,10 +19,6 @@ class BasketDcatJsonHarvester(DCATJSONHarvester, BasketBasicHarvester):
         }
 
     def modify_package_dict(self, package_dict, dcat_dict, harvest_object):
-        from icecream import ic
-        ic(self.n)
-        self.n += 1
-
         self.base_context = {"user": self._get_user_name()}
 
         package_dict = json.loads(harvest_object.content)
