@@ -9,7 +9,7 @@ from .base_harvester import BasketBasicHarvester
 
 class BasketDcatJsonHarvester(DCATJSONHarvester, BasketBasicHarvester):
     SRC_ID = "DCAT"
-    n = 0
+
     def info(self):
         return {
             "name": "basket_dcat_json",
@@ -31,7 +31,3 @@ class BasketDcatJsonHarvester(DCATJSONHarvester, BasketBasicHarvester):
         self.transmute_data(package_dict, schema)
 
         return package_dict
-
-    def _get_guids_and_datasets(self, content):
-        for idx, item in enumerate(super()._get_guids_and_datasets(content)):
-            yield item

@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import logging
 from lxml import etree
-
-from ckan import model
-import ckan.plugins as p
 from ckanext.spatial.harvesters import CSWHarvester
 from ckanext.spatial.lib.csw_client import CswService, CswError, PropertyIsEqualTo
 from ckanext.transmute.utils import get_schema
