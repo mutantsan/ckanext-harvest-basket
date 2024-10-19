@@ -10,9 +10,9 @@ from .base_harvester import BasketBasicHarvester
 from requests import utils as request_utils
 import owslib.util as ows_util
 
-from requests_cache import install_cache
-def ff(resp):
-    return resp.url.startswith("https://www.mrt.tas.gov.au")
+# from requests_cache import install_cache
+# def ff(resp):
+#     return resp.url.startswith("https://www.mrt.tas.gov.au")
 # install_cache("/tmp/csw-harvester", "sqlite", filter_fn=ff)
 
 log = logging.getLogger(__name__)
