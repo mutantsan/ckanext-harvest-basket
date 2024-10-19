@@ -31,6 +31,11 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
         super().import_stage(harvest_object)
 
     def _search_for_datasets(self, remote_ckan_base_url, fq_terms=None):
+        if fq_terms is None:
+            fq_terms = []
+        if fq := self.config.get("fq" ,""):
+            fq_terms.append(fq)
+
         pkg_dicts = super()._search_for_datasets(remote_ckan_base_url, fq_terms)
         max_datasets = int(self.config.get("max_datasets", 0))
         return pkg_dicts[:max_datasets] if max_datasets else pkg_dicts
