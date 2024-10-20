@@ -12,7 +12,7 @@ import owslib.util as ows_util
 
 # from requests_cache import install_cache
 # def ff(resp):
-#     return resp.url.startswith("https://www.mrt.tas.gov.au")
+#     return resp.url.startswith("https://geonetwork.tern.org.au")
 # install_cache("/tmp/csw-harvester", "sqlite", filter_fn=ff)
 
 log = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ class BasketCswService(CswService):
                     break
 
             startposition += page
-            if startposition >= (matches + 1) or 1:
+            if startposition >= (matches + 1):
                 break
 
             kwa["startposition"] = startposition
