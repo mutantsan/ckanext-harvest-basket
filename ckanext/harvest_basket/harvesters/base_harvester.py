@@ -3,7 +3,7 @@ import requests
 import logging
 import json
 import uuid
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime as dt
 from dateutil import parser
 from html import unescape
@@ -14,6 +14,7 @@ import ckan.plugins.toolkit as tk
 from ckan.plugins import plugin_loaded
 from ckan import model
 from ckan.lib.munge import munge_tag
+from ckanext.transmute.utils import get_schema
 
 from ckanext.harvest.harvesters.base import HarvesterBase
 try:
@@ -163,6 +164,12 @@ class BasketBasicHarvester(HarvesterBase):
 
         return tags
 
+    def _transmute_content(self, package_dict: dict[str, Any]):
+        schema = self.config.get("tsm_schema")
+        if not schema and (schema_name := self.config.get("tsm_named_schema")):
+            schema = get_schema(schema_name)
+        self.transmute_data(package_dict, schema)
+
     def import_stage(self, harvest_object):
         self.base_context = {
             "model": model,
@@ -182,7 +189,7 @@ class BasketBasicHarvester(HarvesterBase):
 
         package_dict = json.loads(harvest_object.content)
 
-        self.transmute_data(package_dict, config.get("tsm_schema"))
+        self._transmute_content(package_dict)
 
         if package_dict.get("type") == "harvest":
             log.info("Remote dataset is a harvest source, ignoring...")

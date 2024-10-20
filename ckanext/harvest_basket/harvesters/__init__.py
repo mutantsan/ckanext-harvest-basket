@@ -6,6 +6,7 @@ from ckanext.harvest_basket.harvesters.ckan_harvester import CustomCKANHarvester
 from ckanext.harvest_basket.harvesters.ods_harvester import ODSHarvester
 from .dcat import BasketDcatJsonHarvester
 from .csw import BasketCswHarvester
+from .csiro import CsiroHarvester
 
 __all__ = [
     "DKANHarvester",
@@ -16,4 +17,5 @@ __all__ = [
     "ODSHarvester",
     "BasketDcatJsonHarvester",
     "BasketCswHarvester",
+    "CsiroHarvester",
 ]

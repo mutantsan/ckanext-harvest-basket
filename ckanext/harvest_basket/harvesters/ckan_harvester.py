@@ -21,11 +21,7 @@ class CustomCKANHarvester(CKANHarvester, BasketBasicHarvester):
         package_dict = json.loads(harvest_object.content)
         self._set_config(harvest_object.source.config)
 
-        schema = self.config.get("tsm_schema")
-        if not schema and (schema_name := self.config.get("tsm_named_schema")):
-            schema = get_schema(schema_name)
-
-        self.transmute_data(package_dict, schema)
+        self._transmute_content(package_dict)
 
         harvest_object.content = json.dumps(package_dict)
         super().import_stage(harvest_object)

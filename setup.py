@@ -77,6 +77,7 @@ setup(
         ods_harvester=ckanext.harvest_basket.harvesters:ODSHarvester
         basket_dcat_json_harvester=ckanext.harvest_basket.harvesters:BasketDcatJsonHarvester
         basket_csw_harvester=ckanext.harvest_basket.harvesters:BasketCswHarvester
+        basket_csiro_harvester=ckanext.harvest_basket.harvesters:CsiroHarvester
 
         [babel.extractors]
         ckan = ckan.lib.extract:extract_ckan

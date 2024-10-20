@@ -99,11 +99,7 @@ class BasketCswHarvester(CSWHarvester, BasketBasicHarvester):
         self.base_context = {"user": self._get_user_name()}
         self._set_config(harvest_object.source.config)
 
-        schema = self.config.get("tsm_schema")
-        if not schema and (schema_name := self.config.get("tsm_named_schema")):
-            schema = get_schema(schema_name)
-
-        self.transmute_data(package_dict, schema)
+        self._transmute_content(package_dict)
         return package_dict
 
     def info(self):
