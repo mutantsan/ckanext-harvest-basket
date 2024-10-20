@@ -21,14 +21,10 @@ from ckanext.harvest_basket.harvesters.base_harvester import BasketBasicHarveste
 log = logging.getLogger(__name__)
 
 
-from requests_cache import install_cache
-
-
-def ff(resp):
-    return resp.url.startswith("https://data.csiro.au/")
-
-
-install_cache("/tmp/csw-harvester", "sqlite", filter_fn=ff)
+# from requests_cache import install_cache
+# def ff(resp):
+#     return resp.url.startswith("https://data.csiro.au/")
+# install_cache("/tmp/csw-harvester", "sqlite", filter_fn=ff)
 
 
 class CsiroHarvester(BasketBasicHarvester):
