@@ -151,6 +151,9 @@ class ODSHarvester(BasketBasicHarvester):
                 "name"
             ] = f"{pkg_data.get('title', tk._('Unnamed resource'))} ({res['rel']})"
 
+            # Try to create unique ID that won't be changed over time
+            resource['id'] = self._generate_unique_id(pkg_data['id'] + resource["format"], resource["url"])
+
             resources.append(resource)
 
         # attachments are an additional resources that we can fetch
@@ -167,6 +170,9 @@ class ODSHarvester(BasketBasicHarvester):
                 resource["url"] = url
                 resource["format"] = self._guess_attachment_format(att)
                 resource["name"] = att.get("title", "")
+
+                # Try to create unique ID that won't be changed over time
+                resource['id'] = self._generate_unique_id(pkg_data['id'] + resource["format"], resource["url"])
 
                 resources.append(resource)
         return resources
