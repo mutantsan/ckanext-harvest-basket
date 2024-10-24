@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ckanext-harvest-basket"
-version = "1.3.71"
+version = "1.3.72"
 description = "A bunch of custom harvesters for ckanext-harvest"
 authors = [
     {name = "DataShades", email = "datashades@linkdigital.com.au"},
+    {name = "Sergey Motornyuk", email = "sergey.motornyuk@linkdigital.com.au"},
     {name = "Oleksandr Cherniavskyi", email = "mutantsan@gmail.com"},
 ]
 maintainers = [
