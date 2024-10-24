@@ -30,7 +30,7 @@
                 placeholder="{{ config_placeholder }}"
                 class="form-control"
             >{{ data.config or config_placeholder }}</textarea>
-            <span class="editor-info-block">{% trans %}Learn more about <a href="https://github.com/mutantsan/ckanext-transmute#working-with-transmute" target="_blank" title="Transmute extension reference">Transmute schema</a> here{% endtrans %}</span>
+            <span class="editor-info-block">{% trans %}Learn more about <a href="https://github.com/DataShades/ckanext-transmute#working-with-transmute" target="_blank" title="Transmute extension reference">Transmute schema</a> here{% endtrans %}</span>
             {% if errors.config and errors.config is iterable %}<span class="error-block">{{ errors.config|join(', ') }}</span>{% endif %}
         </div>
     </div>

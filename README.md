@@ -20,7 +20,7 @@ To install ckanext-harvest-basket:
 
 2. Clone the source and install it on the virtualenv
 
-    git clone https://github.com/mutantsan/ckanext-harvest-basket.git
+    git clone https://github.com/DataShades/ckanext-harvest-basket.git
     cd ckanext-harvest-basket
     pip install -e .
 	pip install -r requirements.txt
@@ -47,7 +47,7 @@ Available config options:
 To install ckanext-harvest-basket for development, activate your CKAN virtualenv and
 do:
 
-    git clone https://github.com/mutantsan/ckanext-harvest-basket.git
+    git clone https://github.com/DataShades/ckanext-harvest-basket.git
     cd ckanext-harvest-basket
     python setup.py develop
     pip install -r requirements.txt
